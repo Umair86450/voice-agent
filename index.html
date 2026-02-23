@@ -3,116 +3,110 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Voice Assistant</title>
+
+  <!-- ── CUSTOMIZE: Page title ── -->
+  <title>German AI Voice Assistant</title>
+
   <script src="https://unpkg.com/livekit-client@2.17.2/dist/livekit-client.umd.js"></script>
+
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      /* ── CUSTOMIZE: Background gradient ── */
+      background: linear-gradient(145deg, #0f0c29, #302b63, #24243e);
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-    }
-
-    /* ── Connect Screen ── */
-    #connect-screen {
-      width: 100%;
-      max-width: 420px;
-      padding: 48px 40px;
-      background: #fff;
-      border-radius: 20px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-    }
-
-    #connect-screen h1 {
-      font-size: 28px;
-      font-weight: 700;
-      color: #111;
-      margin-bottom: 8px;
-    }
-
-    #connect-screen p.sub {
-      font-size: 14px;
-      color: #666;
-      margin-bottom: 32px;
-    }
-
-    .form-group { margin-bottom: 20px; }
-
-    label {
-      display: block;
-      font-size: 12px;
-      font-weight: 600;
-      color: #555;
-      margin-bottom: 8px;
-      letter-spacing: 0.4px;
-      text-transform: uppercase;
-    }
-
-    input[type="text"], input[type="password"] {
-      width: 100%;
-      padding: 14px 16px;
-      border: 2px solid #e4e4e4;
-      border-radius: 12px;
-      font-size: 15px;
-      color: #111;
-      outline: none;
-      transition: all 0.2s;
-      background: #fdfdfd;
-    }
-
-    input[type="text"]:focus, input[type="password"]:focus {
-      border-color: #667eea;
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-    }
-
-    .hint {
-      font-size: 12px;
-      color: #888;
-      margin-top: 6px;
-    }
-
-    .hint code {
-      background: #f0f0f0;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 11px;
-    }
-
-    #connect-btn {
-      width: 100%;
-      padding: 15px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: #fff;
-      border: none;
-      border-radius: 12px;
+    }
+
+    /* ════════════════ START SCREEN ════════════════ */
+    #start-screen {
+      text-align: center;
+      padding: 40px 24px;
+      animation: fadeIn 0.6s ease;
+    }
+
+    .emoji-icon {
+      font-size: 64px;
+      margin-bottom: 24px;
+      display: block;
+      /* ── CUSTOMIZE: Change emoji above ── */
+    }
+
+    #start-screen h1 {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      /* ── CUSTOMIZE: Title text ── */
+    }
+
+    #start-screen p {
       font-size: 16px;
-      font-weight: 600;
+      color: rgba(255,255,255,0.6);
+      margin-bottom: 48px;
+      /* ── CUSTOMIZE: Subtitle text ── */
+    }
+
+    #start-btn {
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      border: none;
       cursor: pointer;
-      margin-top: 10px;
-      transition: all 0.3s;
-      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.5);
+      transition: transform 0.2s;
+      animation: pulse-idle 2.5s infinite;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: 0 auto;
+      color: #fff;
     }
 
-    #connect-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+    #start-btn:hover {
+      transform: scale(1.06);
+      animation: none;
+      box-shadow: 0 0 40px rgba(102, 126, 234, 0.6);
     }
 
-    #connect-btn:active { transform: translateY(0); }
+    #start-btn:active { transform: scale(0.97); }
 
-    /* ── Voice Screen ── */
+    #start-btn .mic-icon {
+      font-size: 40px;
+    }
+
+    #start-btn .btn-label {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      opacity: 0.9;
+    }
+
+    @keyframes pulse-idle {
+      0%   { box-shadow: 0 0 0 0 rgba(102,126,234,0.5); }
+      70%  { box-shadow: 0 0 0 20px rgba(102,126,234,0); }
+      100% { box-shadow: 0 0 0 0 rgba(102,126,234,0); }
+    }
+
+    /* ════════════════ VOICE SCREEN ════════════════ */
     #voice-screen {
       display: none;
       flex-direction: column;
       align-items: center;
       gap: 32px;
-      padding: 60px 40px;
+      padding: 60px 24px;
+      animation: fadeIn 0.5s ease;
     }
 
+    /* Animated orb */
     .orb-wrap {
       position: relative;
       width: 180px;
@@ -125,190 +119,163 @@
     .ring {
       position: absolute;
       border-radius: 50%;
-      border: 3px solid rgba(102, 126, 234, 0.6);
+      border: 2px solid rgba(102,126,234,0.7);
       opacity: 0;
-      width: 100%; height: 100%;
     }
-
+    .ring-1 { width: 100%; height: 100%; }
     .ring-2 { width: 140%; height: 140%; }
     .ring-3 { width: 180%; height: 180%; }
 
-    .orb-wrap.speaking .ring-1 { animation: ripple 1.6s ease-out infinite; }
-    .orb-wrap.speaking .ring-2 { animation: ripple 1.6s ease-out infinite 0.3s; }
-    .orb-wrap.speaking .ring-3 { animation: ripple 1.6s ease-out infinite 0.6s; }
+    .orb-wrap.speaking .ring-1 { animation: ripple 1.5s ease-out infinite 0s; }
+    .orb-wrap.speaking .ring-2 { animation: ripple 1.5s ease-out infinite 0.3s; }
+    .orb-wrap.speaking .ring-3 { animation: ripple 1.5s ease-out infinite 0.6s; }
 
     @keyframes ripple {
-      0%   { transform: scale(0.85); opacity: 0.8; }
-      100% { transform: scale(1.15); opacity: 0; }
+      0%   { transform: scale(0.8); opacity: 0.8; }
+      100% { transform: scale(1.1); opacity: 0; }
     }
 
     .orb {
       width: 120px;
       height: 120px;
-      background: linear-gradient(135deg, #e8e4ff 0%, #f0eeff 100%);
+      background: linear-gradient(135deg, #667eea, #764ba2);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 1;
       transition: all 0.3s;
-      box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3);
+      box-shadow: 0 10px 40px rgba(102,126,234,0.4);
+      font-size: 40px;
     }
 
     .orb-wrap.speaking .orb {
-      background: linear-gradient(135deg, #d4cfff 0%, #e8e4ff 100%);
-      box-shadow: 0 15px 50px rgba(102, 126, 234, 0.5);
+      box-shadow: 0 15px 60px rgba(102,126,234,0.7);
     }
 
-    .orb svg {
-      width: 42px;
-      height: 42px;
-      stroke: #667eea;
+    /* connecting spinner inside orb */
+    .orb-wrap.connecting .orb {
+      animation: spin-glow 1s linear infinite;
+    }
+    @keyframes spin-glow {
+      0%   { box-shadow: 0 0 20px 5px rgba(102,126,234,0.6); }
+      50%  { box-shadow: 0 0 40px 10px rgba(118,75,162,0.8); }
+      100% { box-shadow: 0 0 20px 5px rgba(102,126,234,0.6); }
     }
 
+    /* Status badge */
     #status-text {
-      font-size: 16px;
-      color: #fff;
-      letter-spacing: 0.3px;
-      text-shadow: 0 2px 10px rgba(0,0,0,0.2);
-      background: rgba(255,255,255,0.2);
+      font-size: 15px;
+      color: rgba(255,255,255,0.8);
+      background: rgba(255,255,255,0.1);
       padding: 10px 24px;
       border-radius: 30px;
       backdrop-filter: blur(10px);
+      letter-spacing: 0.3px;
     }
 
+    /* Controls */
     .controls {
       display: flex;
       gap: 12px;
     }
 
     .btn {
-      padding: 13px 26px;
+      padding: 13px 28px;
       border-radius: 12px;
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
       border: none;
-      background: rgba(255,255,255,0.95);
-      color: #333;
       transition: all 0.2s;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
     }
 
-    .btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(0,0,0,0.3);
-    }
-
-    .btn.active {
-      background: #ff4757;
+    .btn-mute {
+      background: rgba(255,255,255,0.15);
       color: #fff;
+      backdrop-filter: blur(10px);
     }
+    .btn-mute:hover { background: rgba(255,255,255,0.25); }
+    .btn-mute.muted  { background: #ff4757; }
 
     .btn-end {
       background: #ff4757;
       color: #fff;
     }
+    .btn-end:hover { background: #ff2d3f; }
 
-    .btn-end:hover {
-      background: #ff3344;
+    /* Shared */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
 
-    /* Footer */
-    .footer {
-      position: fixed;
-      bottom: 20px;
-      color: rgba(255,255,255,0.7);
-      font-size: 13px;
-    }
   </style>
 </head>
 <body>
 
-  <!-- ── Connect Screen ── -->
-  <div id="connect-screen">
-    <h1>🎙️ Voice Assistant</h1>
-    <p class="sub">Connect to your AI agent powered by LiveKit</p>
+  <!-- ══════════ START SCREEN ══════════ -->
+  <div id="start-screen">
 
-    <div class="form-group">
-      <label>LiveKit Server URL</label>
-      <input type="text" id="lk-url" placeholder="wss://your-project.livekit.cloud" />
-    </div>
+    <!-- ── CUSTOMIZE: Emoji ── -->
+    <span class="emoji-icon">🤖</span>
 
-    <div class="form-group">
-      <label>Access Token</label>
-      <input type="password" id="lk-token" placeholder="Paste your token here" />
-      <p class="hint">💡 Generate token using: <code>uv run python generate_token.py</code></p>
-    </div>
+    <!-- ── CUSTOMIZE: Title & subtitle ── -->
+    <h1>German AI Assistant</h1>
+    <p>Tap to start a voice conversation</p>
 
-    <button id="connect-btn" onclick="connectRoom()">Connect to Agent</button>
+    <button id="start-btn" onclick="startCall()">
+      <span class="mic-icon">🎙️</span>
+      <span class="btn-label">Start</span>
+    </button>
   </div>
 
-  <!-- ── Voice Screen ── -->
+  <!-- ══════════ VOICE SCREEN ══════════ -->
   <div id="voice-screen">
-    <div class="orb-wrap" id="orb-wrap">
+    <div class="orb-wrap connecting" id="orb-wrap">
       <div class="ring ring-1"></div>
       <div class="ring ring-2"></div>
       <div class="ring ring-3"></div>
-      <div class="orb">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-          <line x1="12" y1="19" x2="12" y2="23"/>
-          <line x1="8" y1="23" x2="16" y2="23"/>
-        </svg>
-      </div>
+      <div class="orb" id="orb-inner">🎙️</div>
     </div>
 
     <p id="status-text">Connecting…</p>
 
     <div class="controls">
-      <button class="btn" id="mute-btn" onclick="toggleMute()">Mute</button>
-      <button class="btn btn-end" onclick="disconnectRoom()">End Call</button>
+      <button class="btn btn-mute" id="mute-btn" onclick="toggleMute()">Mute</button>
+      <button class="btn btn-end" onclick="endCall()">End Call</button>
     </div>
   </div>
 
-  <div class="footer">Powered by LiveKit Agents</div>
 
   <script>
-    let room = null;
-    let muted = false;
+    let room   = null;
+    let muted  = false;
 
-    // Auto-load saved credentials
-    window.addEventListener('DOMContentLoaded', () => {
-      const savedUrl = localStorage.getItem('lk_url');
-      if (savedUrl) {
-        document.getElementById('lk-url').value = savedUrl;
-      }
-    });
+    // ── CUSTOMIZE: Room name (must match api/token.js) ──
+    // const ROOM_NAME = 'demo-room';   ← change in api/token.js
 
-    async function connectRoom() {
-      let url = document.getElementById('lk-url').value.trim();
-      const token = document.getElementById('lk-token').value.trim();
-      
-      if (!url) {
-        url = 'wss://your-project.livekit.cloud';
-      }
-      
-      if (!url || !token) {
-        alert('Please enter both LiveKit URL and Token');
-        return;
-      }
-
-      // Save URL for next time
-      localStorage.setItem('lk_url', url);
-
+    async function startCall() {
       showScreen('voice');
       setStatus('Connecting…');
 
       try {
-        room = new LivekitClient.Room({ 
-          adaptiveStream: true, 
-          dynacast: true,
-          autoSubscribe: true
+        // 1. Get token from our Vercel API
+        const res = await fetch('/api/token');
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Token fetch failed');
+        }
+        const { url, token } = await res.json();
+
+        // 2. Create LiveKit room
+        room = new LivekitClient.Room({
+          adaptiveStream: true,
+          dynacast:       true,
+          autoSubscribe:  true,
         });
 
+        // Play agent audio automatically
         room.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {
           if (track.kind === LivekitClient.Track.Kind.Audio) {
             const el = track.attach();
@@ -321,6 +288,7 @@
           track.detach().forEach(el => el.remove());
         });
 
+        // Animate orb when someone is speaking
         room.on(LivekitClient.RoomEvent.ActiveSpeakersChanged, (speakers) => {
           const orb = document.getElementById('orb-wrap');
           const agentSpeaking = speakers.some(
@@ -335,37 +303,37 @@
             setStatus('🔊 Agent is speaking…');
           } else if (meSpeaking) {
             orb.classList.remove('speaking');
-            setStatus('🎤 Listening…');
+            setStatus('🎤 Listening to you…');
           } else {
             orb.classList.remove('speaking');
-            setStatus('✨ Connected — start speaking');
+            setStatus('Connected — say something!');
           }
         });
 
-        room.on(LivekitClient.RoomEvent.ParticipantConnected, (p) => {
-          setStatus('🤖 Agent connected — start speaking');
+        room.on(LivekitClient.RoomEvent.ParticipantConnected, () => {
+          document.getElementById('orb-wrap').classList.remove('connecting');
+          setStatus('Agent joined — start speaking!');
         });
 
         room.on(LivekitClient.RoomEvent.Disconnected, () => {
-          showScreen('connect');
+          resetUI();
+          showScreen('start');
         });
 
-        room.on(LivekitClient.RoomEvent.Reconnecting, () => {
-          setStatus('🔄 Reconnecting…');
-        });
+        room.on(LivekitClient.RoomEvent.Reconnecting, () => setStatus('🔄 Reconnecting…'));
+        room.on(LivekitClient.RoomEvent.Reconnected,  () => setStatus('Connected!'));
 
-        room.on(LivekitClient.RoomEvent.Reconnected, () => {
-          setStatus('✨ Reconnected!');
-        });
-
+        // 3. Connect & enable mic
         await room.connect(url, token);
         await room.localParticipant.setMicrophoneEnabled(true);
-        setStatus('✨ Connected — waiting for agent…');
+
+        document.getElementById('orb-wrap').classList.remove('connecting');
+        setStatus('Connected — waiting for agent…');
 
       } catch (err) {
         console.error(err);
         alert('Connection failed: ' + err.message);
-        showScreen('connect');
+        showScreen('start');
       }
     }
 
@@ -374,22 +342,29 @@
       muted = !muted;
       await room.localParticipant.setMicrophoneEnabled(!muted);
       const btn = document.getElementById('mute-btn');
-      btn.textContent = muted ? '🔇 Unmute' : '🎤 Mute';
-      btn.classList.toggle('active', muted);
+      btn.textContent = muted ? 'Unmute' : 'Mute';
+      btn.classList.toggle('muted', muted);
     }
 
-    function disconnectRoom() {
+    function endCall() {
       if (room) { room.disconnect(); room = null; }
+      resetUI();
+      showScreen('start');
+    }
+
+    function resetUI() {
       muted = false;
-      document.getElementById('mute-btn').textContent = '🎤 Mute';
-      document.getElementById('mute-btn').classList.remove('active');
-      document.getElementById('orb-wrap').classList.remove('speaking');
-      showScreen('connect');
+      const muteBtn = document.getElementById('mute-btn');
+      muteBtn.textContent = 'Mute';
+      muteBtn.classList.remove('muted');
+      const orb = document.getElementById('orb-wrap');
+      orb.classList.remove('speaking');
+      orb.classList.add('connecting');
     }
 
     function showScreen(name) {
-      document.getElementById('connect-screen').style.display = name === 'connect' ? 'block' : 'none';
-      document.getElementById('voice-screen').style.display = name === 'voice' ? 'flex' : 'none';
+      document.getElementById('start-screen').style.display = name === 'start' ? 'block' : 'none';
+      document.getElementById('voice-screen').style.display  = name === 'voice'  ? 'flex'  : 'none';
     }
 
     function setStatus(msg) {

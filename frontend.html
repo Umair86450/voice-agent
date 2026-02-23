@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voice Assistant</title>
+  <script src="https://unpkg.com/livekit-client@2.17.2/dist/livekit-client.umd.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #fafafa;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── Connect Screen ── */
+    #connect-screen {
+      width: 100%;
+      max-width: 400px;
+      padding: 48px 40px;
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 2px 24px rgba(0,0,0,0.08);
+    }
+
+    #connect-screen h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 6px;
+    }
+
+    #connect-screen p.sub {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 32px;
+    }
+
+    .form-group { margin-bottom: 18px; }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 6px;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1.5px solid #e4e4e4;
+      border-radius: 10px;
+      font-size: 14px;
+      color: #111;
+      outline: none;
+      transition: border-color 0.2s;
+      background: #fdfdfd;
+    }
+
+    input[type="text"]:focus { border-color: #6c63ff; }
+
+    .hint {
+      font-size: 11px;
+      color: #aaa;
+      margin-top: 5px;
+    }
+
+    .hint code {
+      background: #f0f0f0;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+
+    #connect-btn {
+      width: 100%;
+      padding: 13px;
+      background: #111;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    #connect-btn:hover { background: #333; }
+    #connect-btn:active { transform: scale(0.98); }
+
+    /* ── Voice Screen ── */
+    #voice-screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+      padding: 60px 40px;
+    }
+
+    .orb-wrap {
+      position: relative;
+      width: 160px;
+      height: 160px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 2px solid #6c63ff;
+      opacity: 0;
+      width: 100%; height: 100%;
+    }
+
+    .ring-2 { width: 130%; height: 130%; }
+    .ring-3 { width: 160%; height: 160%; }
+
+    .orb-wrap.speaking .ring-1 { animation: ripple 1.6s ease-out infinite; }
+    .orb-wrap.speaking .ring-2 { animation: ripple 1.6s ease-out infinite 0.3s; }
+    .orb-wrap.speaking .ring-3 { animation: ripple 1.6s ease-out infinite 0.6s; }
+
+    @keyframes ripple {
+      0%   { transform: scale(0.85); opacity: 0.7; }
+      100% { transform: scale(1.05); opacity: 0; }
+    }
+
+    .orb {
+      width: 100px;
+      height: 100px;
+      background: #f0eeff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+      transition: background 0.3s;
+    }
+
+    .orb-wrap.speaking .orb { background: #e8e4ff; }
+
+    .orb svg {
+      width: 36px;
+      height: 36px;
+      stroke: #6c63ff;
+    }
+
+    #status-text {
+      font-size: 15px;
+      color: #666;
+      letter-spacing: 0.2px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      padding: 11px 22px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1.5px solid #e4e4e4;
+      background: #fff;
+      color: #333;
+      transition: all 0.2s;
+    }
+
+    .btn:hover { background: #f5f5f5; }
+
+    .btn.active {
+      background: #ff4757;
+      border-color: #ff4757;
+      color: #fff;
+    }
+
+    .btn-end {
+      background: #111;
+      border-color: #111;
+      color: #fff;
+    }
+
+    .btn-end:hover { background: #333; border-color: #333; }
+  </style>
+</head>
+<body>
+
+  <!-- ── Connect Screen ── -->
+  <div id="connect-screen">
+    <h1>Voice Assistant</h1>
+    <p class="sub">Connect to your AI agent</p>
+
+    <div class="form-group">
+      <label>LiveKit Server URL</label>
+      <input type="text" id="lk-url" placeholder="wss://your-server.livekit.cloud" />
+    </div>
+
+    <div class="form-group">
+      <label>Token</label>
+      <input type="text" id="lk-token" placeholder="Paste your token here" />
+      <p class="hint">Generate: <code>uv run python generate_token.py</code></p>
+    </div>
+
+    <button id="connect-btn" onclick="connectRoom()">Connect</button>
+  </div>
+
+  <!-- ── Voice Screen ── -->
+  <div id="voice-screen">
+    <div class="orb-wrap" id="orb-wrap">
+      <div class="ring ring-1"></div>
+      <div class="ring ring-2"></div>
+      <div class="ring ring-3"></div>
+      <div class="orb">
+        <!-- Microphone icon -->
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+      </div>
+    </div>
+
+    <p id="status-text">Connecting…</p>
+
+    <div class="controls">
+      <button class="btn" id="mute-btn" onclick="toggleMute()">Mute</button>
+      <button class="btn btn-end" onclick="disconnectRoom()">End Call</button>
+    </div>
+  </div>
+
+  <script>
+    let room = null;
+    let muted = false;
+
+    async function connectRoom() {
+      // Auto-fill from environment or use manual input
+      let url = document.getElementById('lk-url').value.trim();
+      const token = document.getElementById('lk-token').value.trim();
+      
+      // If URL is empty, try to use LiveKit Cloud URL from env or default
+      if (!url) {
+        url = window.LIVEKIT_URL || 'wss://your-project.livekit.cloud';
+      }
+      
+      if (!url || !token) { alert('URL aur Token dono chahiye.'); return; }
+
+      showScreen('voice');
+      setStatus('Connecting…');
+
+      try {
+        room = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
+
+        // Play agent audio
+        room.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {
+          if (track.kind === LivekitClient.Track.Kind.Audio) {
+            const el = track.attach();
+            el.style.display = 'none';
+            document.body.appendChild(el);
+          }
+        });
+
+        room.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => {
+          track.detach().forEach(el => el.remove());
+        });
+
+        // Speaking animation
+        room.on(LivekitClient.RoomEvent.ActiveSpeakersChanged, (speakers) => {
+          const orb = document.getElementById('orb-wrap');
+          const agentSpeaking = speakers.some(
+            s => s.identity !== room.localParticipant.identity
+          );
+          const meSpeaking = speakers.some(
+            s => s.identity === room.localParticipant.identity
+          );
+
+          if (agentSpeaking) {
+            orb.classList.add('speaking');
+            setStatus('Agent is speaking…');
+          } else if (meSpeaking) {
+            orb.classList.remove('speaking');
+            setStatus('Listening…');
+          } else {
+            orb.classList.remove('speaking');
+            setStatus('Connected — start speaking');
+          }
+        });
+
+        room.on(LivekitClient.RoomEvent.ParticipantConnected, (p) => {
+          setStatus('Agent connected — start speaking');
+        });
+
+        room.on(LivekitClient.RoomEvent.Disconnected, () => {
+          showScreen('connect');
+        });
+
+        await room.connect(url, token);
+        await room.localParticipant.setMicrophoneEnabled(true);
+        setStatus('Connected — waiting for agent…');
+
+      } catch (err) {
+        console.error(err);
+        alert('Connection failed: ' + err.message);
+        showScreen('connect');
+      }
+    }
+
+    async function toggleMute() {
+      if (!room) return;
+      muted = !muted;
+      await room.localParticipant.setMicrophoneEnabled(!muted);
+      const btn = document.getElementById('mute-btn');
+      btn.textContent = muted ? 'Unmute' : 'Mute';
+      btn.classList.toggle('active', muted);
+    }
+
+    function disconnectRoom() {
+      if (room) { room.disconnect(); room = null; }
+      muted = false;
+      document.getElementById('mute-btn').textContent = 'Mute';
+      document.getElementById('mute-btn').classList.remove('active');
+      document.getElementById('orb-wrap').classList.remove('speaking');
+      showScreen('connect');
+    }
+
+    function showScreen(name) {
+      document.getElementById('connect-screen').style.display = name === 'connect' ? 'block' : 'none';
+      document.getElementById('voice-screen').style.display   = name === 'voice'   ? 'flex'  : 'none';
+    }
+
+    function setStatus(msg) {
+      document.getElementById('status-text').textContent = msg;
+    }
+  </script>
+</body>
+</html>

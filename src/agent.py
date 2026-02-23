@@ -1,7 +1,6 @@
 import logging
 
 from dotenv import load_dotenv
-from livekit import rtc
 from livekit.agents import (
     Agent,
     AgentServer,
@@ -9,11 +8,8 @@ from livekit.agents import (
     JobContext,
     JobProcess,
     cli,
-    inference,
-    room_io,
 )
-from livekit.plugins import noise_cancellation, silero
-from livekit.plugins.turn_detector.multilingual import MultilingualModel
+from livekit.plugins import deepgram, groq, silero
 
 logger = logging.getLogger("agent")
 
@@ -23,10 +19,11 @@ load_dotenv(".env.local")
 class Assistant(Agent):
     def __init__(self) -> None:
         super().__init__(
-            instructions="""You are a helpful voice AI assistant. The user is interacting with you via voice, even if you perceive the conversation as text.
-            You eagerly assist users with their questions by providing information from your extensive knowledge.
-            Your responses are concise, to the point, and without any complex formatting or punctuation including emojis, asterisks, or other symbols.
-            You are curious, friendly, and have a sense of humor.""",
+            instructions="""Du bist ein hilfreicher KI-Sprachassistent. Der Benutzer spricht mit dir per Sprache.
+            Antworte immer auf Deutsch, egal in welcher Sprache der Benutzer spricht.
+            Deine Antworten sind kurz, präzise und ohne komplexe Formatierungen oder Sonderzeichen.
+            Du bist freundlich, neugierig und hast einen guten Sinn für Humor.
+            Sprich natürlich und fließend wie ein echter deutschsprachiger Assistent.""",
         )
 
     # To add tools, use the @function_tool decorator.
@@ -51,41 +48,44 @@ server = AgentServer()
 
 
 def prewarm(proc: JobProcess):
-    proc.userdata["vad"] = silero.VAD.load()
+    proc.userdata["vad"] = silero.VAD.load(
+        min_speech_duration=0.1,       # speech detect karne ka minimum time
+        min_silence_duration=0.8,      # zyada silence ke baad hi end mane
+        activation_threshold=0.4,      # default 0.5 tha - thoda sensitive kiya
+        prefix_padding_duration=0.3,
+    )
 
 
 server.setup_fnc = prewarm
 
 
-@server.rtc_session(agent_name="my-agent")
+@server.rtc_session()
 async def my_agent(ctx: JobContext):
-    # Logging setup
-    # Add any other context you want in all log entries here
+    print("=== AGENT JOB  - room:", ctx.room.name, "===")
     ctx.log_context_fields = {
         "room": ctx.room.name,
     }
 
-    # Set up a voice AI pipeline using OpenAI, Cartesia, Deepgram, and the LiveKit turn detector
+    # Voice pipeline: Groq STT + Groq LLM + Deepgram TTS
     session = AgentSession(
-        # Speech-to-text (STT) is your agent's ears, turning the user's speech into text that the LLM can understand
-        # See all available models at https://docs.livekit.io/agents/models/stt/
-        stt=inference.STT(model="deepgram/nova-3", language="multi"),
-        # A Large Language Model (LLM) is your agent's brain, processing user input and generating a response
-        # See all available models at https://docs.livekit.io/agents/models/llm/
-        llm=inference.LLM(model="openai/gpt-4.1-mini"),
-        # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
-        # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
-        tts=inference.TTS(
-            model="cartesia/sonic-3", voice="9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"
-        ),
-        # VAD and turn detection are used to determine when the user is speaking and when the agent should respond
-        # See more at https://docs.livekit.io/agents/build/turns
-        turn_detection=MultilingualModel(),
+        stt=groq.STT(model="whisper-large-v3-turbo", language="de"),
+        llm=groq.LLM(model="llama-3.3-70b-versatile"),
+        tts=deepgram.TTS(model="aura-2-andromeda-en"),
         vad=ctx.proc.userdata["vad"],
-        # allow the LLM to generate a response while waiting for the end of turn
-        # See more at https://docs.livekit.io/agents/build/audio/#preemptive-generation
-        preemptive_generation=True,
     )
+
+    @session.on("user_input_transcribed")
+    def on_stt(event):
+        if event.is_final:
+            logger.info(f"[STT] User: {event.transcript}")
+
+    @session.on("conversation_item_added")
+    def on_llm(event):
+        item = event.item
+        if hasattr(item, "role") and item.role == "assistant":
+            text = item.text_content
+            if text:
+                logger.info(f"[LLM] Agent: {text}")
 
     # To use a realtime model instead of a voice pipeline, use the following session setup instead.
     # (Note: This is for the OpenAI Realtime API. For other providers, see https://docs.livekit.io/agents/models/realtime/))
@@ -105,25 +105,86 @@ async def my_agent(ctx: JobContext):
     # # Start the avatar and wait for it to join
     # await avatar.start(session, room=ctx.room)
 
-    # Start the session, which initializes the voice pipeline and warms up the models
+    # Pehle room join karo
+    await ctx.connect()
+
+    # Phir voice pipeline start karo
     await session.start(
         agent=Assistant(),
         room=ctx.room,
-        room_options=room_io.RoomOptions(
-            audio_input=room_io.AudioInputOptions(
-                noise_cancellation=lambda params: (
-                    noise_cancellation.BVCTelephony()
-                    if params.participant.kind
-                    == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
-                    else noise_cancellation.BVC()
-                ),
-            ),
-        ),
     )
-
-    # Join the room and connect to the user
-    await ctx.connect()
 
 
 if __name__ == "__main__":
     cli.run_app(server)
+
+
+
+# --------------
+
+
+# # syntax=docker/dockerfile:1
+
+# # Use the official UV Python base image with Python 3.13 on Debian Bookworm
+# # UV is a fast Python package manager that provides better performance than pip
+# # We use the slim variant to keep the image size smaller while still having essential tools
+# ARG PYTHON_VERSION=3.13
+# FROM ghcr.io/astral-sh/uv:python${PYTHON_VERSION}-bookworm-slim AS base
+
+# # Keeps Python from buffering stdout and stderr to avoid situations where
+# # the application crashes without emitting any logs due to buffering.
+# ENV PYTHONUNBUFFERED=1
+
+# # Create a non-privileged user that the app will run under.
+# # See https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#user
+# ARG UID=10001
+# RUN adduser \
+#     --disabled-password \
+#     --gecos "" \
+#     --home "/app" \
+#     --shell "/sbin/nologin" \
+#     --uid "${UID}" \
+#     appuser
+
+# # Install build dependencies required for Python packages with native extensions
+# # gcc: C compiler needed for building Python packages with C extensions
+# # python3-dev: Python development headers needed for compilation
+# # We clean up the apt cache after installation to keep the image size down
+# RUN apt-get update && apt-get install -y \
+#     gcc \
+#     g++ \
+#     python3-dev \
+#   && rm -rf /var/lib/apt/lists/*
+
+# # Create a new directory for our application code
+# # And set it as the working directory
+# WORKDIR /app
+
+# # Copy dependency files and source package for build
+# COPY pyproject.toml uv.lock README.md ./
+# COPY src/ src/
+
+# # Install Python dependencies using UV's lock file
+# # --locked ensures we use exact versions from uv.lock for reproducible builds
+# RUN uv sync --locked
+
+# # Copy all remaining application files into the container
+# COPY . .
+
+# # Change ownership of all app files to the non-privileged user
+# # This ensures the application can read/write files as needed
+# RUN chown -R appuser:appuser /app
+
+# # Switch to the non-privileged user for all subsequent operations
+# # This improves security by not running as root
+# USER appuser
+
+# # Pre-download any ML models or files the agent needs
+# # This ensures the container is ready to run immediately without downloading
+# # dependencies at runtime, which improves startup time and reliability
+# RUN uv run src/agent.py download-files
+
+# # Run the application using UV
+# # UV will activate the virtual environment and run the agent.
+# # The "start" command tells the worker to connect to LiveKit and begin waiting for jobs.
+# CMD ["uv", "run", "src/agent.py", "start"]

@@ -69,18 +69,18 @@ async def my_agent(ctx: JobContext):
 
     # Check if Piper TTS is available
     piper_model_path = get_piper_model_path()
-    
+
     if piper_model_path:
         # Use Piper TTS (local, low latency)
         logger.info(f"Using Piper TTS: {piper_model_path}")
-        
+
         # Import custom Piper TTS plugin
         from piper_tts_plugin import create_piper_tts
         tts_plugin = create_piper_tts(
             model_path=piper_model_path,
             config_path=piper_model_path + ".json",
         )
-        
+
         # Use Deepgram STT + Groq LLM + Piper TTS
         session = AgentSession(
             stt=inference.STT(model="deepgram/nova-3", language="de"),
@@ -93,7 +93,7 @@ async def my_agent(ctx: JobContext):
     else:
         # Fallback to Cartesia TTS (cloud)
         logger.warning("Piper TTS not found, using Cartesia TTS")
-        
+
         session = AgentSession(
             stt=inference.STT(model="deepgram/nova-3", language="multi"),
             llm=inference.LLM(model="openai/gpt-4.1-mini"),
@@ -105,14 +105,14 @@ async def my_agent(ctx: JobContext):
             preemptive_generation=True,
         )
 
-    # Start the session
+    # Start the session - this automatically connects to the room
     await session.start(
         agent=Assistant(),
         room=ctx.room,
     )
 
-    # Join the room and connect to the user
-    await ctx.connect()
+    # Keep the agent running until the room is closed
+    await ctx.wait_for_participant()
 
 
 if __name__ == "__main__":

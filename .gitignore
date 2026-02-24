@@ -12,3 +12,4 @@ KMS
 .ruff_cache
 node_modules/
 api/node_modules/
+.demo-logs/

@@ -10,188 +10,338 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #fafafa;
+      background: #0f0f0f;
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
+      color: #fff;
     }
 
     /* ── Connect Screen ── */
     #connect-screen {
-      width: 100%;
-      max-width: 400px;
-      padding: 48px 40px;
-      background: #fff;
-      border-radius: 18px;
-      box-shadow: 0 2px 24px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      padding: 60px 40px;
     }
 
     #connect-screen h1 {
-      font-size: 26px;
+      font-size: 32px;
       font-weight: 700;
-      color: #111;
-      margin-bottom: 6px;
+      letter-spacing: -0.5px;
     }
 
     #connect-screen p.sub {
-      font-size: 14px;
-      color: #888;
-      margin-bottom: 32px;
-    }
-
-    .form-group { margin-bottom: 18px; }
-
-    label {
-      display: block;
-      font-size: 12px;
-      font-weight: 600;
-      color: #555;
-      margin-bottom: 6px;
-      letter-spacing: 0.4px;
-      text-transform: uppercase;
-    }
-
-    input[type="text"] {
-      width: 100%;
-      padding: 11px 14px;
-      border: 1.5px solid #e4e4e4;
-      border-radius: 10px;
-      font-size: 14px;
-      color: #111;
-      outline: none;
-      transition: border-color 0.2s;
-      background: #fdfdfd;
-    }
-
-    input[type="text"]:focus { border-color: #6c63ff; }
-
-    .hint {
-      font-size: 11px;
-      color: #aaa;
-      margin-top: 5px;
-    }
-
-    .hint code {
-      background: #f0f0f0;
-      padding: 1px 5px;
-      border-radius: 4px;
-      font-size: 11px;
+      font-size: 15px;
+      color: #666;
+      text-align: center;
     }
 
     #connect-btn {
-      width: 100%;
-      padding: 13px;
-      background: #111;
+      padding: 16px 52px;
+      background: #6c63ff;
       color: #fff;
       border: none;
-      border-radius: 10px;
-      font-size: 15px;
+      border-radius: 50px;
+      font-size: 17px;
       font-weight: 600;
       cursor: pointer;
-      margin-top: 8px;
-      transition: background 0.2s, transform 0.1s;
+      transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+      box-shadow: 0 4px 24px rgba(108,99,255,0.45);
     }
 
-    #connect-btn:hover { background: #333; }
-    #connect-btn:active { transform: scale(0.98); }
+    #connect-btn:hover  { background: #5a52e0; }
+    #connect-btn:active { transform: scale(0.97); }
+    #connect-btn:disabled { background: #333; box-shadow: none; cursor: not-allowed; color: #666; }
 
     /* ── Voice Screen ── */
     #voice-screen {
       display: none;
       flex-direction: column;
       align-items: center;
-      gap: 28px;
-      padding: 60px 40px;
+      width: 100%;
+      max-width: 680px;
+      height: 100vh;
+      padding: 36px 24px 20px;
+      gap: 14px;
     }
 
+    /* ── Orb ── */
     .orb-wrap {
       position: relative;
-      width: 160px;
-      height: 160px;
+      width: 120px;
+      height: 120px;
       display: flex;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;
     }
 
+    /* Rings animate when agent speaks */
     .ring {
       position: absolute;
       border-radius: 50%;
-      border: 2px solid #6c63ff;
+      border: 1.5px solid #6c63ff;
       opacity: 0;
       width: 100%; height: 100%;
+      pointer-events: none;
     }
-
     .ring-2 { width: 130%; height: 130%; }
     .ring-3 { width: 160%; height: 160%; }
 
-    .orb-wrap.speaking .ring-1 { animation: ripple 1.6s ease-out infinite; }
-    .orb-wrap.speaking .ring-2 { animation: ripple 1.6s ease-out infinite 0.3s; }
-    .orb-wrap.speaking .ring-3 { animation: ripple 1.6s ease-out infinite 0.6s; }
+    .orb-wrap.agent-speaking .ring-1 { animation: ripple 1.5s ease-out infinite; }
+    .orb-wrap.agent-speaking .ring-2 { animation: ripple 1.5s ease-out infinite 0.28s; }
+    .orb-wrap.agent-speaking .ring-3 { animation: ripple 1.5s ease-out infinite 0.56s; }
 
     @keyframes ripple {
-      0%   { transform: scale(0.85); opacity: 0.7; }
-      100% { transform: scale(1.05); opacity: 0; }
+      0%   { transform: scale(0.88); opacity: 0.55; }
+      100% { transform: scale(1.08); opacity: 0; }
     }
 
+    /* Orb body — scales with mic level in JS */
     .orb {
-      width: 100px;
-      height: 100px;
-      background: #f0eeff;
+      width: 78px;
+      height: 78px;
+      background: #181828;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 1;
-      transition: background 0.3s;
+      border: 2px solid #2a2a3e;
+      transition: background 0.25s, border-color 0.25s;
     }
 
-    .orb-wrap.speaking .orb { background: #e8e4ff; }
+    .orb-wrap.agent-speaking .orb  { background: #1e1a50; border-color: #6c63ff; }
+    .orb-wrap.user-speaking .orb   { background: #0e2e18; border-color: #4ade80; }
+    .orb-wrap.interrupted .orb     { background: #2e1010; border-color: #ff4757; }
 
     .orb svg {
-      width: 36px;
-      height: 36px;
+      width: 28px;
+      height: 28px;
       stroke: #6c63ff;
+      transition: stroke 0.25s;
+    }
+    .orb-wrap.user-speaking .orb svg { stroke: #4ade80; }
+    .orb-wrap.interrupted .orb svg   { stroke: #ff4757; }
+
+    /* Flash when interrupted */
+    @keyframes interruptFlash {
+      0%   { box-shadow: 0 0 0 0 rgba(255,71,87,0.7); }
+      50%  { box-shadow: 0 0 0 18px rgba(255,71,87,0); }
+      100% { box-shadow: 0 0 0 0 rgba(255,71,87,0); }
+    }
+    .orb-wrap.interrupted .orb { animation: interruptFlash 0.5s ease-out; }
+
+    /* Mic level bars (shown when user speaks) */
+    .mic-bars {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 20px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .mic-bars.active { opacity: 1; }
+
+    .bar {
+      width: 3px;
+      background: #4ade80;
+      border-radius: 2px;
+      height: 4px;
+      transition: height 0.08s ease;
+    }
+
+    /* Status row */
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    #status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #333;
+      transition: background 0.3s;
+      flex-shrink: 0;
+    }
+    .orb-wrap.agent-speaking ~ .status-row #status-dot,
+    .dot-agent { background: #6c63ff !important; animation: dotPulse 1.2s ease-in-out infinite; }
+    .dot-user  { background: #4ade80 !important; }
+    .dot-ready { background: #4ade80 !important; }
+    .dot-wait  { background: #f59e0b !important; }
+
+    @keyframes dotPulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
     }
 
     #status-text {
-      font-size: 15px;
+      font-size: 13px;
       color: #666;
       letter-spacing: 0.2px;
     }
 
+    /* ── Transcript ── */
+    #transcript {
+      flex: 1;
+      width: 100%;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 2px 0;
+      scrollbar-width: thin;
+      scrollbar-color: #222 transparent;
+    }
+
+    #transcript::-webkit-scrollbar { width: 3px; }
+    #transcript::-webkit-scrollbar-thumb { background: #222; border-radius: 3px; }
+
+    .msg {
+      display: flex;
+      gap: 9px;
+      align-items: flex-start;
+      max-width: 86%;
+      animation: fadeUp 0.18s ease;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(5px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg.user  { align-self: flex-end;   flex-direction: row-reverse; }
+    .msg.agent { align-self: flex-start; }
+
+    .msg-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      flex-shrink: 0;
+      margin-top: 3px;
+    }
+    .agent .msg-icon { background: #1e1a4e; border: 1px solid #4a42aa; }
+    .user  .msg-icon { background: #0d2e1a; border: 1px solid #22c55e; }
+
+    .msg-content { max-width: calc(100% - 33px); }
+
+    .msg-label {
+      font-size: 10px;
+      color: #444;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 3px;
+    }
+
+    .msg-bubble {
+      padding: 9px 13px;
+      border-radius: 14px;
+      font-size: 14px;
+      line-height: 1.6;
+      word-break: break-word;
+    }
+
+    .agent .msg-bubble {
+      background: #161616;
+      border: 1px solid #242424;
+      color: #d8d8d8;
+      border-radius: 3px 14px 14px 14px;
+    }
+
+    .user .msg-bubble {
+      background: #1e1a4e;
+      border: 1px solid #36306e;
+      color: #c0b8ff;
+      border-radius: 14px 3px 14px 14px;
+    }
+
+    /* Streaming cursor on agent bubble */
+    .msg-bubble.streaming::after {
+      content: '▊';
+      color: #6c63ff;
+      animation: blink 0.55s step-end infinite;
+      margin-left: 2px;
+      font-size: 12px;
+      vertical-align: middle;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+
+    /* Interim user speech — dimmed */
+    .msg-bubble.interim {
+      opacity: 0.45;
+      font-style: italic;
+      border-style: dashed;
+    }
+
+    /* Interrupted badge on agent bubble */
+    .interrupted-badge {
+      display: inline-block;
+      font-size: 10px;
+      color: #ff4757;
+      margin-left: 6px;
+      vertical-align: middle;
+      opacity: 0.8;
+    }
+
+    #empty-hint {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: #2e2e2e;
+      font-size: 14px;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    /* ── Controls ── */
     .controls {
       display: flex;
       gap: 10px;
+      flex-shrink: 0;
     }
 
     .btn {
-      padding: 11px 22px;
-      border-radius: 10px;
+      padding: 10px 22px;
+      border-radius: 50px;
       font-size: 14px;
       font-weight: 500;
       cursor: pointer;
-      border: 1.5px solid #e4e4e4;
-      background: #fff;
-      color: #333;
-      transition: all 0.2s;
+      border: 1.5px solid #222;
+      background: #161616;
+      color: #999;
+      transition: all 0.18s;
     }
-
-    .btn:hover { background: #f5f5f5; }
+    .btn:hover { background: #1f1f1f; border-color: #333; }
 
     .btn.active {
-      background: #ff4757;
+      background: #2e0e0e;
       border-color: #ff4757;
-      color: #fff;
+      color: #ff4757;
     }
 
     .btn-end {
-      background: #111;
-      border-color: #111;
-      color: #fff;
+      background: #13112e;
+      border-color: #4a42aa;
+      color: #8b84ff;
     }
-
-    .btn-end:hover { background: #333; border-color: #333; }
+    .btn-end:hover { background: #1c1850; }
   </style>
 </head>
 <body>
@@ -199,30 +349,18 @@
   <!-- ── Connect Screen ── -->
   <div id="connect-screen">
     <h1>Voice Assistant</h1>
-    <p class="sub">Connect to your AI agent</p>
-
-    <div class="form-group">
-      <label>LiveKit Server URL</label>
-      <input type="text" id="lk-url" placeholder="wss://your-server.livekit.cloud" />
-    </div>
-
-    <div class="form-group">
-      <label>Token</label>
-      <input type="text" id="lk-token" placeholder="Paste your token here" />
-      <p class="hint">Generate: <code>uv run python generate_token.py</code></p>
-    </div>
-
+    <p class="sub">Click connect — talk naturally, interrupt anytime</p>
     <button id="connect-btn" onclick="connectRoom()">Connect</button>
   </div>
 
   <!-- ── Voice Screen ── -->
   <div id="voice-screen">
+
     <div class="orb-wrap" id="orb-wrap">
       <div class="ring ring-1"></div>
       <div class="ring ring-2"></div>
       <div class="ring ring-3"></div>
-      <div class="orb">
-        <!-- Microphone icon -->
+      <div class="orb" id="orb">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2"
              stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
@@ -233,7 +371,26 @@
       </div>
     </div>
 
-    <p id="status-text">Connecting…</p>
+    <!-- Real-time mic level bars -->
+    <div class="mic-bars" id="mic-bars">
+      <div class="bar" id="b0"></div>
+      <div class="bar" id="b1"></div>
+      <div class="bar" id="b2"></div>
+      <div class="bar" id="b3"></div>
+      <div class="bar" id="b4"></div>
+    </div>
+
+    <div class="status-row">
+      <div id="status-dot"></div>
+      <p id="status-text">Connecting…</p>
+    </div>
+
+    <div id="transcript">
+      <div id="empty-hint">
+        <span>Speak naturally — interrupt the agent anytime</span>
+        <span style="font-size:12px; color:#222;">Transcript appears here</span>
+      </div>
+    </div>
 
     <div class="controls">
       <button class="btn" id="mute-btn" onclick="toggleMute()">Mute</button>
@@ -245,22 +402,172 @@
     let room = null;
     let muted = false;
 
-    async function connectRoom() {
-      // Auto-fill from environment or use manual input
-      let url = document.getElementById('lk-url').value.trim();
-      const token = document.getElementById('lk-token').value.trim();
-      
-      // If URL is empty, try to use LiveKit Cloud URL from env or default
-      if (!url) {
-        url = window.LIVEKIT_URL || 'wss://your-project.livekit.cloud';
-      }
-      
-      if (!url || !token) { alert('URL aur Token dono chahiye.'); return; }
+    // ── Audio meter state ─────────────────────────────────────────────
+    let audioCtx    = null;
+    let analyser    = null;
+    let animFrame   = null;
+    let freqData    = null;
 
-      showScreen('voice');
-      setStatus('Connecting…');
+    // ── Transcript streaming state ────────────────────────────────────
+    const agentStreams = {};  // segId -> { bubbleEl, interrupted }
+    const userStreams  = {};  // segId -> { bubbleEl }
+
+    // Track if agent was speaking (to detect interruptions)
+    let agentSpeaking = false;
+
+    // ── Audio meter setup ─────────────────────────────────────────────
+    function setupAudioMeter(mediaStreamTrack) {
+      try {
+        audioCtx  = new (window.AudioContext || window.webkitAudioContext)();
+        analyser  = audioCtx.createAnalyser();
+        analyser.fftSize = 512;
+        analyser.smoothingTimeConstant = 0.75;
+
+        const src = audioCtx.createMediaStreamSource(new MediaStream([mediaStreamTrack]));
+        src.connect(analyser);
+
+        freqData = new Uint8Array(analyser.frequencyBinCount);
+
+        const bars = [
+          document.getElementById('b0'),
+          document.getElementById('b1'),
+          document.getElementById('b2'),
+          document.getElementById('b3'),
+          document.getElementById('b4'),
+        ];
+        const micBarsEl = document.getElementById('mic-bars');
+        const orbEl     = document.getElementById('orb');
+
+        function tick() {
+          analyser.getByteFrequencyData(freqData);
+
+          // Voice frequency range (roughly 80Hz–3kHz in our FFT buckets)
+          let voiceSum = 0;
+          const voiceBuckets = Math.floor(freqData.length * 0.15); // lower 15%
+          for (let i = 2; i < voiceBuckets; i++) voiceSum += freqData[i];
+          const level = voiceSum / (voiceBuckets * 255); // 0..1
+
+          const orbWrap = document.getElementById('orb-wrap');
+          const isUserSpeaking = orbWrap.classList.contains('user-speaking');
+
+          if (!muted && level > 0.04) {
+            // Animate mic bars
+            micBarsEl.classList.add('active');
+            const heights = [
+              4 + level * 60,
+              4 + level * 90,
+              4 + level * 110,
+              4 + level * 90,
+              4 + level * 60,
+            ];
+            bars.forEach((b, i) => {
+              b.style.height = Math.min(heights[i], 28) + 'px';
+            });
+
+            // Orb subtle scale with voice
+            if (!agentSpeaking) {
+              const scale = 1 + level * 0.18;
+              orbEl.style.transform = `scale(${scale})`;
+            }
+          } else {
+            micBarsEl.classList.remove('active');
+            bars.forEach(b => { b.style.height = '4px'; });
+            if (!agentSpeaking) orbEl.style.transform = '';
+          }
+
+          animFrame = requestAnimationFrame(tick);
+        }
+
+        tick();
+      } catch (e) {
+        console.warn('Audio meter setup failed:', e);
+      }
+    }
+
+    function stopAudioMeter() {
+      if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+      if (audioCtx)  { audioCtx.close(); audioCtx = null; }
+    }
+
+    // ── Status helpers ────────────────────────────────────────────────
+    function setStatus(msg, dotClass) {
+      document.getElementById('status-text').textContent = msg;
+      const dot = document.getElementById('status-dot');
+      dot.className = dotClass || '';
+    }
+
+    function setOrbState(state) {
+      const orb = document.getElementById('orb-wrap');
+      orb.classList.remove('agent-speaking', 'user-speaking', 'interrupted');
+      if (state) orb.classList.add(state);
+    }
+
+    // ── Transcript helpers ────────────────────────────────────────────
+    function removeEmptyHint() {
+      const h = document.getElementById('empty-hint');
+      if (h) h.remove();
+    }
+
+    function scrollBottom() {
+      const t = document.getElementById('transcript');
+      t.scrollTop = t.scrollHeight;
+    }
+
+    function createBubble(role) {
+      removeEmptyHint();
+      const t = document.getElementById('transcript');
+
+      const wrap = document.createElement('div');
+      wrap.className = 'msg ' + (role === 'user' ? 'user' : 'agent');
+
+      const icon = document.createElement('div');
+      icon.className = 'msg-icon';
+      icon.textContent = role === 'user' ? '🎤' : '🤖';
+
+      const content = document.createElement('div');
+      content.className = 'msg-content';
+
+      const label = document.createElement('div');
+      label.className = 'msg-label';
+      label.textContent = role === 'user' ? 'You' : 'Agent';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-bubble';
+
+      content.appendChild(label);
+      content.appendChild(bubble);
+      wrap.appendChild(icon);
+      wrap.appendChild(content);
+      t.appendChild(wrap);
+      scrollBottom();
+
+      return { bubbleEl: bubble };
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;');
+    }
+
+    // ── Main connection ───────────────────────────────────────────────
+    async function connectRoom() {
+      const connectBtn = document.getElementById('connect-btn');
+      connectBtn.disabled = true;
+      connectBtn.textContent = 'Connecting...';
 
       try {
+        // 1. Auto-fetch token
+        const res = await fetch('/api/token');
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Token fetch failed');
+        }
+        const { url, token } = await res.json();
+        console.log('✓ Token ok, url:', url);
+
+        // 2. Create LiveKit room
         room = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
 
         // Play agent audio
@@ -271,49 +578,136 @@
             document.body.appendChild(el);
           }
         });
-
         room.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => {
           track.detach().forEach(el => el.remove());
         });
 
-        // Speaking animation
-        room.on(LivekitClient.RoomEvent.ActiveSpeakersChanged, (speakers) => {
-          const orb = document.getElementById('orb-wrap');
-          const agentSpeaking = speakers.some(
-            s => s.identity !== room.localParticipant.identity
-          );
-          const meSpeaking = speakers.some(
-            s => s.identity === room.localParticipant.identity
-          );
+        // Hook into local audio track for mic meter
+        room.on(LivekitClient.RoomEvent.LocalTrackPublished, (pub) => {
+          if (pub.kind === LivekitClient.Track.Kind.Audio) {
+            const t = pub.track;
+            if (t && t.mediaStreamTrack) {
+              setupAudioMeter(t.mediaStreamTrack);
+            }
+          }
+        });
 
-          if (agentSpeaking) {
-            orb.classList.add('speaking');
-            setStatus('Agent is speaking…');
-          } else if (meSpeaking) {
-            orb.classList.remove('speaking');
-            setStatus('Listening…');
+        // ── Speaker detection + interruption visual ───────────────────
+        room.on(LivekitClient.RoomEvent.ActiveSpeakersChanged, (speakers) => {
+          const localId   = room.localParticipant.identity;
+          const nowAgent  = speakers.some(s => s.identity !== localId);
+          const nowUser   = speakers.some(s => s.identity === localId);
+
+          // Interruption detected: agent was speaking, user cuts in
+          if (agentSpeaking && nowUser && !nowAgent) {
+            setOrbState('interrupted');
+            setStatus('You interrupted', 'dot-user');
+            // Mark last agent bubble as interrupted
+            const lastAgentSid = Object.keys(agentStreams).pop();
+            if (lastAgentSid) {
+              const b = agentStreams[lastAgentSid].bubbleEl;
+              b.classList.remove('streaming');
+              const badge = document.createElement('span');
+              badge.className = 'interrupted-badge';
+              badge.textContent = '✂ interrupted';
+              b.appendChild(badge);
+              delete agentStreams[lastAgentSid];
+            }
+            setTimeout(() => {
+              if (!agentSpeaking) setOrbState('user-speaking');
+            }, 400);
+          } else if (nowAgent) {
+            setOrbState('agent-speaking');
+            setStatus('Agent is speaking…', 'dot-agent');
+          } else if (nowUser) {
+            setOrbState('user-speaking');
+            setStatus('Listening…', 'dot-user');
           } else {
-            orb.classList.remove('speaking');
-            setStatus('Connected — start speaking');
+            setOrbState(null);
+            document.getElementById('orb').style.transform = '';
+            setStatus('Connected — start speaking', 'dot-ready');
+          }
+
+          agentSpeaking = nowAgent;
+        });
+
+        // ── Real-time transcription streaming ─────────────────────────
+        room.on(LivekitClient.RoomEvent.TranscriptionReceived, (segments, participant) => {
+          const isLocal = participant &&
+            participant.identity === room.localParticipant.identity;
+
+          for (const seg of segments) {
+            const text = (seg.text || '').trim();
+            const sid  = seg.id || seg.sid || ('tmp_' + Date.now() + Math.random());
+
+            if (isLocal) {
+              // User speech: show interim dimmed, final solid
+              if (!userStreams[sid]) {
+                userStreams[sid] = createBubble('user');
+                userStreams[sid].bubbleEl.classList.add('interim');
+              }
+              const b = userStreams[sid].bubbleEl;
+              b.innerHTML = escapeHtml(text);
+              if (seg.final) {
+                b.classList.remove('interim');
+                delete userStreams[sid];
+              }
+
+            } else {
+              // Agent response: stream token by token with cursor
+              if (!agentStreams[sid]) {
+                agentStreams[sid] = { bubbleEl: createBubble('agent').bubbleEl };
+                agentStreams[sid].bubbleEl.classList.add('streaming');
+              }
+              const b = agentStreams[sid].bubbleEl;
+              b.innerHTML = escapeHtml(text);
+              if (seg.final) {
+                b.classList.remove('streaming');
+                delete agentStreams[sid];
+              }
+              scrollBottom();
+            }
           }
         });
 
         room.on(LivekitClient.RoomEvent.ParticipantConnected, (p) => {
-          setStatus('Agent connected — start speaking');
+          console.log('✓ Agent joined:', p.identity);
+          setStatus('Agent ready — start speaking!', 'dot-ready');
         });
 
         room.on(LivekitClient.RoomEvent.Disconnected, () => {
+          stopAudioMeter();
           showScreen('connect');
+          connectBtn.disabled  = false;
+          connectBtn.textContent = 'Connect';
         });
 
+        room.on(LivekitClient.RoomEvent.Reconnecting, () => setStatus('Reconnecting…', 'dot-wait'));
+        room.on(LivekitClient.RoomEvent.Reconnected,  () => setStatus('Reconnected!',   'dot-ready'));
+
+        // 3. Connect with phone-quality mic constraints
         await room.connect(url, token);
-        await room.localParticipant.setMicrophoneEnabled(true);
-        setStatus('Connected — waiting for agent…');
+
+        // Publish mic with noise cancellation + echo cancel
+        const micTrack = await LivekitClient.createLocalAudioTrack({
+          echoCancellation:  true,
+          noiseSuppression:  true,
+          autoGainControl:   true,
+          channelCount:      1,     // mono like a phone
+          sampleRate:        16000, // voice-optimised
+        });
+        await room.localParticipant.publishTrack(micTrack);
+
+        showScreen('voice');
+        setStatus('Connected — waiting for agent…', 'dot-wait');
+        console.log('✓ Room connected, mic published');
 
       } catch (err) {
-        console.error(err);
+        console.error('Connection error:', err);
         alert('Connection failed: ' + err.message);
         showScreen('connect');
+        connectBtn.disabled  = false;
+        connectBtn.textContent = 'Connect';
       }
     }
 
@@ -324,24 +718,34 @@
       const btn = document.getElementById('mute-btn');
       btn.textContent = muted ? 'Unmute' : 'Mute';
       btn.classList.toggle('active', muted);
+      if (muted) {
+        document.getElementById('mic-bars').classList.remove('active');
+        setStatus('Microphone muted', '');
+      } else {
+        setStatus('Connected — start speaking', 'dot-ready');
+      }
     }
 
     function disconnectRoom() {
+      stopAudioMeter();
       if (room) { room.disconnect(); room = null; }
       muted = false;
+      agentSpeaking = false;
+      Object.keys(agentStreams).forEach(k => delete agentStreams[k]);
+      Object.keys(userStreams).forEach(k  => delete userStreams[k]);
       document.getElementById('mute-btn').textContent = 'Mute';
       document.getElementById('mute-btn').classList.remove('active');
-      document.getElementById('orb-wrap').classList.remove('speaking');
+      document.getElementById('orb-wrap').className = 'orb-wrap';
+      document.getElementById('orb').style.transform = '';
+      document.getElementById('mic-bars').classList.remove('active');
+      document.getElementById('transcript').innerHTML =
+        '<div id="empty-hint"><span>Speak naturally — interrupt the agent anytime</span><span style="font-size:12px;color:#222;">Transcript appears here</span></div>';
       showScreen('connect');
     }
 
     function showScreen(name) {
-      document.getElementById('connect-screen').style.display = name === 'connect' ? 'block' : 'none';
+      document.getElementById('connect-screen').style.display = name === 'connect' ? 'flex' : 'none';
       document.getElementById('voice-screen').style.display   = name === 'voice'   ? 'flex'  : 'none';
-    }
-
-    function setStatus(msg) {
-      document.getElementById('status-text').textContent = msg;
     }
   </script>
 </body>

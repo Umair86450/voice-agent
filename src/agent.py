@@ -42,10 +42,10 @@ def get_piper_model_path() -> str | None:
 
 def prewarm(proc: JobProcess):
     proc.userdata["vad"] = silero.VAD.load(
-        min_speech_duration=0.1,
-        min_silence_duration=0.3,
-        activation_threshold=0.4,
-        prefix_padding_duration=0.2,
+        min_speech_duration=0.05,       # 50ms — voice bahut jaldi detect ho
+        min_silence_duration=0.15,      # 150ms silence ke baad turn pass ho
+        activation_threshold=0.3,       # sensitive — halki awaaz bhi pakde
+        prefix_padding_duration=0.1,    # speech start miss na ho
     )
     
     # Pre-load Piper TTS if available
@@ -91,11 +91,11 @@ async def my_agent(ctx: JobContext):
             turn_detection=MultilingualModel(),
             vad=ctx.proc.userdata["vad"],
             preemptive_generation=True,
-            # Echo cancellation settings
+            # Phone-call-like interruption settings
             allow_interruptions=True,
-            min_interruption_duration=0.5,
-            min_interruption_words=3,
-            false_interruption_timeout=1.5,
+            min_interruption_duration=0.2,      # 200ms — agent jaldi ruke
+            min_interruption_words=1,            # 1 word kafi hai interrupt ke liye
+            false_interruption_timeout=0.6,      # false positive jaldi recover ho
             resume_false_interruption=True,
             discard_audio_if_uninterruptible=True,
         )
@@ -124,11 +124,11 @@ async def my_agent(ctx: JobContext):
             turn_detection=MultilingualModel(),
             vad=ctx.proc.userdata["vad"],
             preemptive_generation=True,
-            # Echo cancellation settings
+            # Phone-call-like interruption settings
             allow_interruptions=True,
-            min_interruption_duration=0.5,
-            min_interruption_words=3,
-            false_interruption_timeout=1.5,
+            min_interruption_duration=0.2,      # 200ms — agent jaldi ruke
+            min_interruption_words=1,            # 1 word kafi hai interrupt ke liye
+            false_interruption_timeout=0.6,      # false positive jaldi recover ho
             resume_false_interruption=True,
             discard_audio_if_uninterruptible=True,
         )

@@ -93,12 +93,26 @@ async def my_agent(ctx: JobContext):
             preemptive_generation=True,
             # Echo cancellation settings
             allow_interruptions=True,
-            min_interruption_duration=0.5,  # Wait 0.5s before allowing interruption
-            min_interruption_words=3,        # Must speak at least 3 words to interrupt
-            false_interruption_timeout=1.5,  # Timeout for false interruption detection
-            resume_false_interruption=True,  # Resume if interruption was false
-            discard_audio_if_uninterruptible=True,  # Discard audio during uninterruptible periods
+            min_interruption_duration=0.5,
+            min_interruption_words=3,
+            false_interruption_timeout=1.5,
+            resume_false_interruption=True,
+            discard_audio_if_uninterruptible=True,
         )
+        
+        # Add conversation logging callbacks
+        @session.on("user_input_transcribed")
+        def on_stt(event):
+            if event.is_final:
+                print(f"\n🎤 USER: {event.transcript}")
+        
+        @session.on("conversation_item_added")
+        def on_llm(event):
+            item = event.item
+            if hasattr(item, "role") and item.role == "assistant":
+                text = item.text_content
+                if text:
+                    print(f"🤖 AGENT: {text}")
     else:
         # Fallback to all Groq + Cartesia
         logger.warning("Piper TTS not found, using Cartesia TTS")
@@ -118,6 +132,20 @@ async def my_agent(ctx: JobContext):
             resume_false_interruption=True,
             discard_audio_if_uninterruptible=True,
         )
+        
+        # Add conversation logging callbacks
+        @session.on("user_input_transcribed")
+        def on_stt(event):
+            if event.is_final:
+                print(f"\n🎤 USER: {event.transcript}")
+        
+        @session.on("conversation_item_added")
+        def on_llm(event):
+            item = event.item
+            if hasattr(item, "role") and item.role == "assistant":
+                text = item.text_content
+                if text:
+                    print(f"🤖 AGENT: {text}")
 
     # Start the session - this automatically connects to the room
     await session.start(

@@ -1,5 +1,6 @@
 import logging
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 from livekit.agents import (
@@ -10,7 +11,7 @@ from livekit.agents import (
     JobProcess,
     cli,
 )
-from livekit.plugins import deepgram, groq, silero
+from livekit.plugins import groq, silero
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 logger = logging.getLogger("agent")
@@ -49,13 +50,49 @@ class Assistant(Agent):
 server = AgentServer()
 
 
+def get_piper_model_paths():
+    """Get paths to Piper TTS model files."""
+    model_dir = Path.home() / ".cache" / "livekit" / "piper"
+    model_path = model_dir / "de_DE-thorsten-medium.onnx"
+    config_path = model_dir / "de_DE-thorsten-medium.onnx.json"
+    
+    if not model_path.exists():
+        logger.warning(
+            f"Piper TTS model not found at {model_path}. "
+            "Run: uv run python src/download_piper_models.py"
+        )
+        return None, None
+    
+    if not config_path.exists():
+        logger.warning(
+            f"Piper TTS config not found at {config_path}. "
+            "Run: uv run python src/download_piper_models.py"
+        )
+        return None, None
+    
+    return str(model_path), str(config_path)
+
+
 def prewarm(proc: JobProcess):
     proc.userdata["vad"] = silero.VAD.load(
         min_speech_duration=0.1,
-        min_silence_duration=0.3,      # 0.8 → 0.3: turn detector handle karega baaki
+        min_silence_duration=0.3,
         activation_threshold=0.4,
         prefix_padding_duration=0.2,
     )
+    
+    # Pre-load Piper TTS model for faster startup
+    model_path, config_path = get_piper_model_paths()
+    if model_path and config_path:
+        try:
+            from piper_tts_plugin import create_piper_tts
+            proc.userdata["piper_model"] = create_piper_tts(
+                model_path=model_path,
+                config_path=config_path,
+            )
+            logger.info("Piper TTS model pre-loaded")
+        except Exception as e:
+            logger.warning(f"Failed to pre-load Piper TTS: {e}")
 
 
 server.setup_fnc = prewarm
@@ -68,11 +105,27 @@ async def my_agent(ctx: JobContext):
         "room": ctx.room.name,
     }
 
-    # Voice pipeline: Groq STT + Groq LLM + Deepgram TTS
+    # Get Piper TTS model paths
+    model_path, config_path = get_piper_model_paths()
+    
+    # Use Piper TTS if available, otherwise fall back to Deepgram
+    if model_path and config_path:
+        logger.info("Using Piper TTS (local, low latency)")
+        from piper_tts_plugin import create_piper_tts
+        tts_plugin = create_piper_tts(
+            model_path=model_path,
+            config_path=config_path,
+        )
+    else:
+        logger.warning("Piper TTS not found, falling back to Deepgram TTS")
+        from livekit.plugins import deepgram
+        tts_plugin = deepgram.TTS(model="aura-2-zeus-en")
+
+    # Voice pipeline: Groq STT + Groq LLM (8B for speed) + Piper TTS (local)
     session = AgentSession(
         stt=groq.STT(model="whisper-large-v3-turbo", language="de"),
-        llm=groq.LLM(model="llama-3.3-70b-versatile"),
-        tts=deepgram.TTS(model="aura-2-zeus-en"),
+        llm=groq.LLM(model="llama-3.1-8b-instant"),
+        tts=tts_plugin,
         vad=ctx.proc.userdata["vad"],
         turn_detection=MultilingualModel(),
     )
@@ -119,6 +172,15 @@ async def my_agent(ctx: JobContext):
 
 
 if __name__ == "__main__":
+    # Add custom download-files command for Piper models
+    import sys
+    
+    if len(sys.argv) > 1 and sys.argv[1] == "download-files":
+        print("Downloading Piper TTS German model...")
+        from download_piper_models import main as download_piper
+        download_piper()
+        print("\nDownloading other LiveKit models...")
+    
     cli.run_app(server)
 
 

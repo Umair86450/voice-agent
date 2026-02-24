@@ -2,7 +2,6 @@ import logging
 from pathlib import Path
 
 from dotenv import load_dotenv
-from livekit import rtc
 from livekit.agents import (
     Agent,
     AgentServer,
@@ -10,10 +9,8 @@ from livekit.agents import (
     JobContext,
     JobProcess,
     cli,
-    inference,
-    room_io,
 )
-from livekit.plugins import silero
+from livekit.plugins import groq, silero
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 logger = logging.getLogger("agent")
@@ -44,7 +41,12 @@ def get_piper_model_path() -> str | None:
 
 
 def prewarm(proc: JobProcess):
-    proc.userdata["vad"] = silero.VAD.load()
+    proc.userdata["vad"] = silero.VAD.load(
+        min_speech_duration=0.1,
+        min_silence_duration=0.3,
+        activation_threshold=0.4,
+        prefix_padding_duration=0.2,
+    )
     
     # Pre-load Piper TTS if available
     model_path = get_piper_model_path()
@@ -81,25 +83,23 @@ async def my_agent(ctx: JobContext):
             config_path=piper_model_path + ".json",
         )
 
-        # Use Deepgram STT + Groq LLM + Piper TTS
+        # Use Groq STT + Groq LLM + Piper TTS
         session = AgentSession(
-            stt=inference.STT(model="deepgram/nova-3", language="de"),
-            llm=inference.LLM(model="groq/llama-3.1-8b-instant"),
+            stt=groq.STT(model="whisper-large-v3-turbo", language="de"),
+            llm=groq.LLM(model="llama-3.1-8b-instant"),
             tts=tts_plugin,  # Local Piper TTS
             turn_detection=MultilingualModel(),
             vad=ctx.proc.userdata["vad"],
             preemptive_generation=True,
         )
     else:
-        # Fallback to Cartesia TTS (cloud)
+        # Fallback to all Groq + Cartesia
         logger.warning("Piper TTS not found, using Cartesia TTS")
 
         session = AgentSession(
-            stt=inference.STT(model="deepgram/nova-3", language="multi"),
-            llm=inference.LLM(model="openai/gpt-4.1-mini"),
-            tts=inference.TTS(
-                model="cartesia/sonic-3", voice="9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"
-            ),
+            stt=groq.STT(model="whisper-large-v3-turbo", language="multi"),
+            llm=groq.LLM(model="llama-3.1-8b-instant"),
+            tts=groq.TTS(model="aura-2-zeus-en"),
             turn_detection=MultilingualModel(),
             vad=ctx.proc.userdata["vad"],
             preemptive_generation=True,

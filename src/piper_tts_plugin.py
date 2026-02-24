@@ -1,166 +1,172 @@
-"""
-Custom Piper TTS plugin for LiveKit Agents.
-Provides low-latency local Text-to-Speech for German language.
-"""
+from __future__ import annotations
 
 import asyncio
 import logging
-import os
-from dataclasses import dataclass
-from pathlib import Path
-from typing import AsyncIterator, Optional, List
+import re
+from typing import Any
 
-import numpy as np
-from livekit.agents import tts
-from piper import PiperVoice
+from livekit.agents import APIConnectOptions, tts, utils
+
+DEFAULT_CONN_OPTIONS = APIConnectOptions()
 
 logger = logging.getLogger(__name__)
 
+PIPER_SAMPLE_RATE = 22050
+PIPER_NUM_CHANNELS = 1
 
-class PiperTTS(tts.TTS):
-    """
-    Piper TTS plugin for LiveKit Agents.
-    
-    Features:
-    - Low latency (local inference, no API calls)
-    - German language support (Thorsten voice)
-    - High quality neural TTS
-    - No internet required after download
-    """
-    
-    def __init__(
-        self,
-        model_path: str,
-        config_path: str,
-        sample_rate: int = 22050,
-        **kwargs,
-    ):
-        super().__init__(
-            capabilities=tts.TTSCapabilities(
-                streaming=False,  # Piper doesn't support streaming
-            ),
-            sample_rate=sample_rate,
-            num_channels=1,
-        )
-        
-        self._model_path = model_path
-        self._config_path = config_path
-        self._sample_rate = sample_rate
-        self._voice: Optional[PiperVoice] = None
-        
-        # Load the model
-        self._load_model()
-    
-    def _load_model(self):
-        """Load Piper voice model."""
-        try:
-            logger.info(f"Loading Piper TTS model from {self._model_path}")
-            self._voice = PiperVoice.load(self._model_path)
-            logger.info("Piper TTS model loaded successfully")
-        except Exception as e:
-            logger.error(f"Failed to load Piper TTS model: {e}")
-            raise
-    
-    def synthesize(self, text: str, **kwargs):
-        """Synthesize speech from text."""
-        return PiperChunkedStream(
-            tts=self,
-            input_text=text,
-            voice=self._voice,
-            sample_rate=self._sample_rate,
-        )
+# Streaming: first chunk small = low ttfb; rest up to MAX_CHUNK_CHARS
+FIRST_CHUNK_MAX_CHARS = 35
+MAX_CHUNK_CHARS = 60
+
+
+def _chunk_text_for_tts(text: str) -> list[str]:
+    """Split text into speakable chunks. First chunk kept small so first audio plays fast (low ttfb)."""
+    text = text.strip()
+    if not text:
+        return []
+
+    def split_by_size(s: str, max_len: int) -> list[str]:
+        out: list[str] = []
+        parts = re.split(r"(?<=[.!?])\s+", s)
+        for part in parts:
+            part = part.strip()
+            if not part:
+                continue
+            if len(part) <= max_len:
+                out.append(part)
+                continue
+            subparts = re.split(r"(?<=[,;])\s+", part)
+            for sub in subparts:
+                sub = sub.strip()
+                if not sub:
+                    continue
+                if len(sub) <= max_len:
+                    out.append(sub)
+                    continue
+                words = sub.split()
+                current: list[str] = []
+                current_len = 0
+                for w in words:
+                    need = len(w) + (1 if current else 0)
+                    if current_len + need > max_len and current:
+                        out.append(" ".join(current))
+                        current, current_len = [], 0
+                    current.append(w)
+                    current_len += len(w) + (1 if len(current) > 1 else 0)
+                if current:
+                    out.append(" ".join(current))
+        return out
+
+    all_chunks = split_by_size(text, MAX_CHUNK_CHARS)
+    if not all_chunks:
+        return []
+    # First chunk smaller for faster first-byte (real-time feel)
+    first = all_chunks[0]
+    if len(first) > FIRST_CHUNK_MAX_CHARS:
+        words = first.split()
+        head: list[str] = []
+        n = 0
+        for w in words:
+            if n + len(w) + (1 if head else 0) > FIRST_CHUNK_MAX_CHARS and head:
+                break
+            head.append(w)
+            n += len(w) + (1 if head else 0)
+        rest_str = " ".join(words[len(head) :])
+        first_chunk = " ".join(head)
+        if rest_str.strip():
+            rest_chunks = split_by_size(rest_str.strip(), MAX_CHUNK_CHARS)
+            all_chunks = [first_chunk] + rest_chunks + all_chunks[1:]
+        else:
+            all_chunks = [first_chunk] + all_chunks[1:]
+    return [c for c in all_chunks if c.strip()]
 
 
 class PiperChunkedStream(tts.ChunkedStream):
-    """Chunked stream for Piper TTS."""
-    
     def __init__(
         self,
-        tts: PiperTTS,
+        *,
+        tts_instance: PiperTTS,
         input_text: str,
-        voice: Optional[PiperVoice],
-        sample_rate: int,
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
-        self._tts = tts
-        self._input_text = input_text
-        self._voice = voice
-        self._sample_rate = sample_rate
-        self._queue: asyncio.Queue[tts.SynthesizedAudio | None] = asyncio.Queue()
-        self._main_task = asyncio.create_task(self._main_task_impl())
-    
-    async def _main_task_impl(self):
-        """Main task to synthesize audio."""
-        try:
-            if not self._voice:
-                raise RuntimeError("Piper voice not loaded")
-            
-            logger.info(f"Synthesizing text: {self._input_text[:50]}...")
-            
-            # Synthesize audio using Piper
-            audio_data = self._voice.synthesize(
-                self._input_text,
-                noise_scale=0.667,
-                length_scale=1.0,
-                noise_w=0.8,
-            )
-            
-            # Convert to numpy array
-            audio_array = np.frombuffer(audio_data, dtype=np.int16)
-            
-            # Create synthesized audio chunk
-            audio = tts.SynthesizedAudio(
-                text=self._input_text,
-                data=audio_array.tobytes(),
-                sample_rate=self._sample_rate,
-            )
-            
-            await self._queue.put(audio)
-            logger.info(f"Synthesis complete for: {self._input_text[:50]}...")
-            
-        except Exception as e:
-            logger.error(f"Piper TTS synthesis failed: {e}")
-            await self._queue.put(None)
-        finally:
-            await self._queue.put(None)
-    
-    async def __anext__(self) -> tts.SynthesizedAudio:
-        """Get next audio chunk."""
-        result = await self._queue.get()
-        if result is None:
-            raise StopAsyncIteration
-        return result
-    
-    async def aclose(self):
-        """Close the stream."""
-        if self._main_task:
-            self._main_task.cancel()
-            try:
-                await self._main_task
-            except asyncio.CancelledError:
-                pass
+        conn_options: APIConnectOptions = DEFAULT_CONN_OPTIONS,
+    ) -> None:
+        super().__init__(tts=tts_instance, input_text=input_text, conn_options=conn_options)
+        self._tts_instance = tts_instance
+
+    async def _run(self, output_emitter: tts.AudioEmitter) -> None:
+        output_emitter.initialize(
+            request_id=utils.shortuuid(),
+            sample_rate=PIPER_SAMPLE_RATE,
+            num_channels=PIPER_NUM_CHANNELS,
+            mime_type="audio/pcm",
+        )
+
+        voice = self._tts_instance._ensure_voice()
+        chunks = _chunk_text_for_tts(self.input_text)
+        if not chunks:
+            output_emitter.flush()
+            output_emitter.end_input()
+            return
+
+        logger.debug("TTS streaming %d chunks: %s...", len(chunks), self.input_text[:50])
+        for chunk in chunks:
+            raw_audio = await asyncio.to_thread(self._synthesize, voice, chunk)
+            if raw_audio:
+                output_emitter.push(raw_audio)
+        output_emitter.flush()
+        output_emitter.end_input()
+
+    @staticmethod
+    def _synthesize(voice: Any, text: str) -> bytes:
+        import wave
+        from io import BytesIO
+
+        if not text.strip():
+            return b""
+        buf = BytesIO()
+        with wave.open(buf, "wb") as wf:
+            voice.synthesize_wav(text, wf)
+        buf.seek(0)
+        with wave.open(buf, "rb") as wf:
+            return wf.readframes(wf.getnframes())
 
 
-# Helper function to create Piper TTS instance
-def create_piper_tts(
-    model_path: str,
-    config_path: str,
-    **kwargs,
-) -> PiperTTS:
-    """
-    Create a Piper TTS instance.
+class PiperTTS(tts.TTS):
+    def __init__(self, *, model_path: str) -> None:
+        super().__init__(
+            capabilities=tts.TTSCapabilities(streaming=False),
+            sample_rate=PIPER_SAMPLE_RATE,
+            num_channels=PIPER_NUM_CHANNELS,
+        )
+        self._model_path = model_path
+        self._voice: Any = None
+
+    @property
+    def label(self) -> str:
+        return "piper-tts"
+
+    def _ensure_voice(self) -> Any:
+        if self._voice is None:
+            from piper import PiperVoice
+
+            logger.info("Loading Piper voice: %s", self._model_path)
+            self._voice = PiperVoice.load(self._model_path)
+        return self._voice
+
+    def synthesize(
+        self,
+        text: str,
+        *,
+        conn_options: APIConnectOptions = DEFAULT_CONN_OPTIONS,
+    ) -> PiperChunkedStream:
+        return PiperChunkedStream(tts_instance=self, input_text=text, conn_options=conn_options)
+
+
+# Helper function for easy creation
+def create_piper_tts(model_path: str, config_path: str | None = None, **kwargs) -> PiperTTS:
+    """Create Piper TTS instance.
     
     Args:
         model_path: Path to .onnx model file
-        config_path: Path to .onnx.json config file
-        **kwargs: Additional options
-    
-    Returns:
-        PiperTTS instance
+        config_path: Not used (kept for compatibility)
     """
-    return PiperTTS(
-        model_path=model_path,
-        config_path=config_path,
-        **kwargs,
-    )
+    return PiperTTS(model_path=model_path)

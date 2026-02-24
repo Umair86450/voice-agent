@@ -1,8 +1,8 @@
 import logging
-import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+from livekit import rtc
 from livekit.agents import (
     Agent,
     AgentServer,
@@ -10,8 +10,10 @@ from livekit.agents import (
     JobContext,
     JobProcess,
     cli,
+    inference,
+    room_io,
 )
-from livekit.plugins import groq, silero
+from livekit.plugins import noise_cancellation, silero
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 logger = logging.getLogger("agent")
@@ -29,68 +31,28 @@ class Assistant(Agent):
             Sprich natürlich und fließend wie ein echter deutschsprachiger Assistent.""",
         )
 
-    # To add tools, use the @function_tool decorator.
-    # Here's an example that adds a simple weather tool.
-    # You also have to add `from livekit.agents import function_tool, RunContext` to the top of this file
-    # @function_tool
-    # async def lookup_weather(self, context: RunContext, location: str):
-    #     """Use this tool to look up current weather information in the given location.
-    #
-    #     If the location is not supported by the weather service, the tool will indicate this. You must tell the user the location's weather is unavailable.
-    #
-    #     Args:
-    #         location: The location to look up weather information for (e.g. city name)
-    #     """
-    #
-    #     logger.info(f"Looking up weather for {location}")
-    #
-    #     return "sunny with a temperature of 70 degrees."
-
 
 server = AgentServer()
 
 
-def get_piper_model_paths():
-    """Get paths to Piper TTS model files."""
-    model_dir = Path.home() / ".cache" / "livekit" / "piper"
-    model_path = model_dir / "de_DE-thorsten-medium.onnx"
-    config_path = model_dir / "de_DE-thorsten-medium.onnx.json"
-    
-    if not model_path.exists():
-        logger.warning(
-            f"Piper TTS model not found at {model_path}. "
-            "Run: uv run python src/download_piper_models.py"
-        )
-        return None, None
-    
-    if not config_path.exists():
-        logger.warning(
-            f"Piper TTS config not found at {config_path}. "
-            "Run: uv run python src/download_piper_models.py"
-        )
-        return None, None
-    
-    return str(model_path), str(config_path)
+def get_piper_model_path() -> str | None:
+    """Get path to Piper TTS model."""
+    model_path = Path.home() / ".cache" / "livekit" / "piper" / "de_DE-thorsten-medium.onnx"
+    if model_path.exists():
+        return str(model_path)
+    return None
 
 
 def prewarm(proc: JobProcess):
-    proc.userdata["vad"] = silero.VAD.load(
-        min_speech_duration=0.1,
-        min_silence_duration=0.3,
-        activation_threshold=0.4,
-        prefix_padding_duration=0.2,
-    )
+    proc.userdata["vad"] = silero.VAD.load()
     
-    # Pre-load Piper TTS model for faster startup
-    model_path, config_path = get_piper_model_paths()
-    if model_path and config_path:
+    # Pre-load Piper TTS if available
+    model_path = get_piper_model_path()
+    if model_path:
         try:
-            from piper_tts_plugin import create_piper_tts
-            proc.userdata["piper_model"] = create_piper_tts(
-                model_path=model_path,
-                config_path=config_path,
-            )
-            logger.info("Piper TTS model pre-loaded")
+            from piper import PiperVoice
+            proc.userdata["piper_voice"] = PiperVoice.load(model_path)
+            logger.info("Piper TTS pre-loaded")
         except Exception as e:
             logger.warning(f"Failed to pre-load Piper TTS: {e}")
 
@@ -98,158 +60,70 @@ def prewarm(proc: JobProcess):
 server.setup_fnc = prewarm
 
 
-@server.rtc_session()
+@server.rtc_session(agent_name="my-agent")
 async def my_agent(ctx: JobContext):
-    print("=== AGENT JOB  - room:", ctx.room.name, "===")
+    # Logging setup
     ctx.log_context_fields = {
         "room": ctx.room.name,
     }
 
-    # Get Piper TTS model paths
-    model_path, config_path = get_piper_model_paths()
+    # Check if Piper TTS is available
+    piper_model_path = get_piper_model_path()
     
-    # Use Piper TTS if available, otherwise fall back to Deepgram
-    if model_path and config_path:
-        logger.info("Using Piper TTS (local, low latency)")
+    if piper_model_path:
+        # Use Piper TTS (local, low latency)
+        logger.info(f"Using Piper TTS: {piper_model_path}")
+        
+        # Import custom Piper TTS plugin
         from piper_tts_plugin import create_piper_tts
         tts_plugin = create_piper_tts(
-            model_path=model_path,
-            config_path=config_path,
+            model_path=piper_model_path,
+            config_path=piper_model_path + ".json",
+        )
+        
+        # Use Deepgram STT + Groq LLM + Piper TTS
+        session = AgentSession(
+            stt=inference.STT(model="deepgram/nova-3", language="de"),
+            llm=inference.LLM(model="groq/llama-3.1-8b-instant"),
+            tts=tts_plugin,  # Local Piper TTS
+            turn_detection=MultilingualModel(),
+            vad=ctx.proc.userdata["vad"],
+            preemptive_generation=True,
         )
     else:
-        logger.warning("Piper TTS not found, falling back to Deepgram TTS")
-        from livekit.plugins import deepgram
-        tts_plugin = deepgram.TTS(model="aura-2-zeus-en")
+        # Fallback to Cartesia TTS (cloud)
+        logger.warning("Piper TTS not found, using Cartesia TTS")
+        
+        session = AgentSession(
+            stt=inference.STT(model="deepgram/nova-3", language="multi"),
+            llm=inference.LLM(model="openai/gpt-4.1-mini"),
+            tts=inference.TTS(
+                model="cartesia/sonic-3", voice="9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"
+            ),
+            turn_detection=MultilingualModel(),
+            vad=ctx.proc.userdata["vad"],
+            preemptive_generation=True,
+        )
 
-    # Voice pipeline: Groq STT + Groq LLM (8B for speed) + Piper TTS (local)
-    session = AgentSession(
-        stt=groq.STT(model="whisper-large-v3-turbo", language="de"),
-        llm=groq.LLM(model="llama-3.1-8b-instant"),
-        tts=tts_plugin,
-        vad=ctx.proc.userdata["vad"],
-        turn_detection=MultilingualModel(),
-    )
-
-    @session.on("user_input_transcribed")
-    def on_stt(event):
-        if event.is_final:
-            logger.info(f"[STT] User: {event.transcript}")
-
-    @session.on("conversation_item_added")
-    def on_llm(event):
-        item = event.item
-        if hasattr(item, "role") and item.role == "assistant":
-            text = item.text_content
-            if text:
-                logger.info(f"[LLM] Agent: {text}")
-
-    # To use a realtime model instead of a voice pipeline, use the following session setup instead.
-    # (Note: This is for the OpenAI Realtime API. For other providers, see https://docs.livekit.io/agents/models/realtime/))
-    # 1. Install livekit-agents[openai]
-    # 2. Set OPENAI_API_KEY in .env.local
-    # 3. Add `from livekit.plugins import openai` to the top of this file
-    # 4. Use the following session setup instead of the version above
-    # session = AgentSession(
-    #     llm=openai.realtime.RealtimeModel(voice="marin")
-    # )
-
-    # # Add a virtual avatar to the session, if desired
-    # # For other providers, see https://docs.livekit.io/agents/models/avatar/
-    # avatar = hedra.AvatarSession(
-    #   avatar_id="...",  # See https://docs.livekit.io/agents/models/avatar/plugins/hedra
-    # )
-    # # Start the avatar and wait for it to join
-    # await avatar.start(session, room=ctx.room)
-
-    # Pehle room join karo
-    await ctx.connect()
-
-    # Phir voice pipeline start karo
+    # Start the session
     await session.start(
         agent=Assistant(),
         room=ctx.room,
+        room_options=room_io.RoomOptions(
+            audio_input=room_io.AudioInputOptions(
+                noise_cancellation=lambda params: (
+                    noise_cancellation.BVCTelephony()
+                    if params.participant.kind
+                    == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
+                    else noise_cancellation.BVC()
+                ),
+            ),
+        ),
     )
+
+    # Join the room and connect to the user
+    await ctx.connect()
 
 
 if __name__ == "__main__":
-    # Add custom download-files command for Piper models
-    import sys
-    
-    if len(sys.argv) > 1 and sys.argv[1] == "download-files":
-        print("Downloading Piper TTS German model...")
-        from download_piper_models import main as download_piper
-        download_piper()
-        print("\nDownloading other LiveKit models...")
-    
     cli.run_app(server)
-
-
-
-# --------------
-
-
-# # syntax=docker/dockerfile:1
-
-# # Use the official UV Python base image with Python 3.13 on Debian Bookworm
-# # UV is a fast Python package manager that provides better performance than pip
-# # We use the slim variant to keep the image size smaller while still having essential tools
-# ARG PYTHON_VERSION=3.13
-# FROM ghcr.io/astral-sh/uv:python${PYTHON_VERSION}-bookworm-slim AS base
-
-# # Keeps Python from buffering stdout and stderr to avoid situations where
-# # the application crashes without emitting any logs due to buffering.
-# ENV PYTHONUNBUFFERED=1
-
-# # Create a non-privileged user that the app will run under.
-# # See https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#user
-# ARG UID=10001
-# RUN adduser \
-#     --disabled-password \
-#     --gecos "" \
-#     --home "/app" \
-#     --shell "/sbin/nologin" \
-#     --uid "${UID}" \
-#     appuser
-
-# # Install build dependencies required for Python packages with native extensions
-# # gcc: C compiler needed for building Python packages with C extensions
-# # python3-dev: Python development headers needed for compilation
-# # We clean up the apt cache after installation to keep the image size down
-# RUN apt-get update && apt-get install -y \
-#     gcc \
-#     g++ \
-#     python3-dev \
-#   && rm -rf /var/lib/apt/lists/*
-
-# # Create a new directory for our application code
-# # And set it as the working directory
-# WORKDIR /app
-
-# # Copy dependency files and source package for build
-# COPY pyproject.toml uv.lock README.md ./
-# COPY src/ src/
-
-# # Install Python dependencies using UV's lock file
-# # --locked ensures we use exact versions from uv.lock for reproducible builds
-# RUN uv sync --locked
-
-# # Copy all remaining application files into the container
-# COPY . .
-
-# # Change ownership of all app files to the non-privileged user
-# # This ensures the application can read/write files as needed
-# RUN chown -R appuser:appuser /app
-
-# # Switch to the non-privileged user for all subsequent operations
-# # This improves security by not running as root
-# USER appuser
-
-# # Pre-download any ML models or files the agent needs
-# # This ensures the container is ready to run immediately without downloading
-# # dependencies at runtime, which improves startup time and reliability
-# RUN uv run src/agent.py download-files
-
-# # Run the application using UV
-# # UV will activate the virtual environment and run the agent.
-# # The "start" command tells the worker to connect to LiveKit and begin waiting for jobs.
-# CMD ["uv", "run", "src/agent.py", "start"]

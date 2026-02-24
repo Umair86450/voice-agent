@@ -28,13 +28,14 @@ module.exports = async function handler(req, res) {
   at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true });
   const token = await at.toJwt();
 
-  // 2. Agent ko room mein dispatch karo (agent_name '' = default unnamed agent)
+  // 2. Agent ko room mein dispatch karo
+  // agent_name 'my-agent' = hamara custom agent (matches @server.rtc_session(agent_name="my-agent"))
   try {
     const dispatch = new AgentDispatchClient(lkUrl, apiKey, apiSecret);
-    await dispatch.createDispatch(roomName, '');
-    console.log('Agent dispatched to room:', roomName);
+    await dispatch.createDispatch(roomName, 'my-agent');
+    console.log('✓ Agent dispatched to room:', roomName, 'with agent_name: my-agent');
   } catch (err) {
-    console.warn('Agent dispatch failed:', err.message);
+    console.warn('✗ Agent dispatch failed:', err.message);
   }
 
   return res.status(200).json({ url: lkUrl, token });

@@ -8,25 +8,13 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator, Optional, List
 
 import numpy as np
 from livekit.agents import tts
 from piper import PiperVoice
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class PiperTTSOptions:
-    """Options for Piper TTS."""
-    model_path: str
-    config_path: str
-    sample_rate: int = 22050
-    noise_scale: float = 0.667
-    length_scale: float = 1.0
-    noise_w: float = 0.8
-    sentence_silence: float = 0.2
 
 
 class PiperTTS(tts.TTS):
@@ -49,7 +37,7 @@ class PiperTTS(tts.TTS):
     ):
         super().__init__(
             capabilities=tts.TTSCapabilities(
-                streaming=False,  # Piper doesn't support streaming yet
+                streaming=False,  # Piper doesn't support streaming
             ),
             sample_rate=sample_rate,
             num_channels=1,
@@ -73,27 +61,46 @@ class PiperTTS(tts.TTS):
             logger.error(f"Failed to load Piper TTS model: {e}")
             raise
     
-    def synthesize(self, text: str) -> tts.ChunkedStream:
+    def synthesize(self, text: str, **kwargs):
         """Synthesize speech from text."""
-        return tts.ChunkedStream(
+        return PiperChunkedStream(
             tts=self,
             input_text=text,
-            conn_options=tts.ChunkedStream.ConnOptions(),
+            voice=self._voice,
+            sample_rate=self._sample_rate,
         )
+
+
+class PiperChunkedStream(tts.ChunkedStream):
+    """Chunked stream for Piper TTS."""
     
-    async def _do_synthesize(
-        self, text: str
-    ) -> AsyncIterator[tts.SynthesizedAudio]:
-        """Internal method to synthesize audio."""
-        if not self._voice:
-            raise RuntimeError("Piper voice not loaded")
-        
-        logger.info(f"Synthesizing text: {text[:50]}...")
-        
+    def __init__(
+        self,
+        tts: PiperTTS,
+        input_text: str,
+        voice: Optional[PiperVoice],
+        sample_rate: int,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self._tts = tts
+        self._input_text = input_text
+        self._voice = voice
+        self._sample_rate = sample_rate
+        self._queue: asyncio.Queue[tts.SynthesizedAudio | None] = asyncio.Queue()
+        self._main_task = asyncio.create_task(self._main_task_impl())
+    
+    async def _main_task_impl(self):
+        """Main task to synthesize audio."""
         try:
+            if not self._voice:
+                raise RuntimeError("Piper voice not loaded")
+            
+            logger.info(f"Synthesizing text: {self._input_text[:50]}...")
+            
             # Synthesize audio using Piper
             audio_data = self._voice.synthesize(
-                text,
+                self._input_text,
                 noise_scale=0.667,
                 length_scale=1.0,
                 noise_w=0.8,
@@ -103,17 +110,36 @@ class PiperTTS(tts.TTS):
             audio_array = np.frombuffer(audio_data, dtype=np.int16)
             
             # Create synthesized audio chunk
-            yield tts.SynthesizedAudio(
-                text=text,
+            audio = tts.SynthesizedAudio(
+                text=self._input_text,
                 data=audio_array.tobytes(),
                 sample_rate=self._sample_rate,
             )
             
-            logger.info(f"Synthesis complete for: {text[:50]}...")
+            await self._queue.put(audio)
+            logger.info(f"Synthesis complete for: {self._input_text[:50]}...")
             
         except Exception as e:
             logger.error(f"Piper TTS synthesis failed: {e}")
-            raise
+            await self._queue.put(None)
+        finally:
+            await self._queue.put(None)
+    
+    async def __anext__(self) -> tts.SynthesizedAudio:
+        """Get next audio chunk."""
+        result = await self._queue.get()
+        if result is None:
+            raise StopAsyncIteration
+        return result
+    
+    async def aclose(self):
+        """Close the stream."""
+        if self._main_task:
+            self._main_task.cancel()
+            try:
+                await self._main_task
+            except asyncio.CancelledError:
+                pass
 
 
 # Helper function to create Piper TTS instance

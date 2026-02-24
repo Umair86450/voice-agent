@@ -1,11 +1,17 @@
 # syntax=docker/dockerfile:1
 
 # Use the official UV Python base image with Python 3.13 on Debian Bookworm
+# UV is a fast Python package manager that provides better performance than pip
+# We use the slim variant to keep the image size smaller while still having essential tools
 ARG PYTHON_VERSION=3.13
 FROM ghcr.io/astral-sh/uv:python${PYTHON_VERSION}-bookworm-slim AS base
 
+# Keeps Python from buffering stdout and stderr to avoid situations where
+# the application crashes without emitting any logs due to buffering.
 ENV PYTHONUNBUFFERED=1
 
+# Create a non-privileged user that the app will run under.
+# See https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#user
 ARG UID=10001
 RUN adduser \
     --disabled-password \
@@ -15,40 +21,45 @@ RUN adduser \
     --uid "${UID}" \
     appuser
 
-# Install build dependencies and Caddy web server
+# Install build dependencies required for Python packages with native extensions
+# gcc: C compiler needed for building Python packages with C extensions
+# python3-dev: Python development headers needed for compilation
+# We clean up the apt cache after installation to keep the image size down
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     python3-dev \
-    curl \
-    gnupg \
-  && curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg \
-  && curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list \
-  && apt-get update \
-  && apt-get install -y caddy \
   && rm -rf /var/lib/apt/lists/*
 
-# Create Caddy configuration BEFORE switching to appuser
-RUN echo ':8081 {\n  root * /app\n  file_server\n}' > /etc/caddy/Caddyfile \
-  && chown appuser:appuser /etc/caddy/Caddyfile
-
+# Create a new directory for our application code
+# And set it as the working directory
 WORKDIR /app
 
+# Copy dependency files and source package for build
 COPY pyproject.toml uv.lock README.md ./
 COPY src/ src/
 
+# Install Python dependencies using UV's lock file
+# --locked ensures we use exact versions from uv.lock for reproducible builds
 RUN uv sync --locked
 
+# Copy all remaining application files into the container
 COPY . .
 
+# Change ownership of all app files to the non-privileged user
+# This ensures the application can read/write files as needed
 RUN chown -R appuser:appuser /app
 
+# Switch to the non-privileged user for all subsequent operations
+# This improves security by not running as root
 USER appuser
 
+# Pre-download any ML models or files the agent needs
+# This ensures the container is ready to run immediately without downloading
+# dependencies at runtime, which improves startup time and reliability
 RUN uv run src/agent.py download-files
 
-# Expose ports: 8080 for agent logs, 8081 for frontend
-EXPOSE 8080 8081
-
-# Run both agent and Caddy web server
-CMD ["sh", "-c", "uv run src/agent.py start & caddy run --config /etc/caddy/Caddyfile"]
+# Run the application using UV
+# UV will activate the virtual environment and run the agent.
+# The "start" command tells the worker to connect to LiveKit and begin waiting for jobs.
+CMD ["uv", "run", "src/agent.py", "start"]

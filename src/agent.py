@@ -1,4 +1,5 @@
 import logging
+import os
 
 from dotenv import load_dotenv
 from livekit.agents import (
@@ -10,6 +11,7 @@ from livekit.agents import (
     cli,
 )
 from livekit.plugins import deepgram, groq, silero
+from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 logger = logging.getLogger("agent")
 
@@ -49,10 +51,10 @@ server = AgentServer()
 
 def prewarm(proc: JobProcess):
     proc.userdata["vad"] = silero.VAD.load(
-        min_speech_duration=0.1,       # speech detect karne ka minimum time
-        min_silence_duration=0.8,      # zyada silence ke baad hi end mane
-        activation_threshold=0.4,      # default 0.5 tha - thoda sensitive kiya
-        prefix_padding_duration=0.3,
+        min_speech_duration=0.1,
+        min_silence_duration=0.3,      # 0.8 → 0.3: turn detector handle karega baaki
+        activation_threshold=0.4,
+        prefix_padding_duration=0.2,
     )
 
 
@@ -70,8 +72,9 @@ async def my_agent(ctx: JobContext):
     session = AgentSession(
         stt=groq.STT(model="whisper-large-v3-turbo", language="de"),
         llm=groq.LLM(model="llama-3.3-70b-versatile"),
-        tts=deepgram.TTS(model="aura-2-andromeda-en"),
+        tts=deepgram.TTS(model="aura-2-zeus-en"),
         vad=ctx.proc.userdata["vad"],
+        turn_detection=MultilingualModel(),
     )
 
     @session.on("user_input_transcribed")

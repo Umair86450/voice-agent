@@ -83,7 +83,7 @@ async def my_agent(ctx: JobContext):
             config_path=piper_model_path + ".json",
         )
 
-        # Use Groq STT + Groq LLM + Piper TTS
+        # Use Groq STT + Groq LLM + Piper TTS with echo cancellation
         session = AgentSession(
             stt=groq.STT(model="whisper-large-v3-turbo", language="de"),
             llm=groq.LLM(model="llama-3.1-8b-instant"),
@@ -91,6 +91,13 @@ async def my_agent(ctx: JobContext):
             turn_detection=MultilingualModel(),
             vad=ctx.proc.userdata["vad"],
             preemptive_generation=True,
+            # Echo cancellation settings
+            allow_interruptions=True,
+            min_interruption_duration=0.5,  # Wait 0.5s before allowing interruption
+            min_interruption_words=3,        # Must speak at least 3 words to interrupt
+            false_interruption_timeout=1.5,  # Timeout for false interruption detection
+            resume_false_interruption=True,  # Resume if interruption was false
+            discard_audio_if_uninterruptible=True,  # Discard audio during uninterruptible periods
         )
     else:
         # Fallback to all Groq + Cartesia
@@ -103,6 +110,13 @@ async def my_agent(ctx: JobContext):
             turn_detection=MultilingualModel(),
             vad=ctx.proc.userdata["vad"],
             preemptive_generation=True,
+            # Echo cancellation settings
+            allow_interruptions=True,
+            min_interruption_duration=0.5,
+            min_interruption_words=3,
+            false_interruption_timeout=1.5,
+            resume_false_interruption=True,
+            discard_audio_if_uninterruptible=True,
         )
 
     # Start the session - this automatically connects to the room

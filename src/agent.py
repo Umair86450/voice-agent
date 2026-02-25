@@ -40,11 +40,23 @@ class Assistant(Agent):
 
     def __init__(self) -> None:
         super().__init__(
-            instructions="""Du bist ein hilfreicher KI-Sprachassistent. Der Benutzer spricht mit dir per Sprache.
-            Antworte immer auf Deutsch, egal in welcher Sprache der Benutzer spricht.
-            Deine Antworten sind kurz, präzise und ohne komplexe Formatierungen oder Sonderzeichen.
-            Du bist freundlich, neugierig und hast einen guten Sinn für Humor.
-            Sprich natürlich und fließend wie ein echter deutschsprachiger Assistent.""",
+            instructions="""Du bisch en fründliche und professionelle KI-Sprachassistent für Telefongespräche.
+                            Du redsch immer Schwiizerdütsch – egal ob dr Aarufer Hochdütsch, Schwiizerdütsch oder Änglisch redt.
+                            Egal i welere Sprach d Frag gstellt wird, dini Antwort isch immer uf Schwiizerdütsch.
+                            Antworte natürlich, warmherzig und menschlich, wie bi me echte Telefongespräch.
+                            Halte dini Antworte churz und klar, maximal ein bis zwei Sätz.
+                            Begrüess fründlich, los aktiv zue und hilf kompetent wiiter.
+                            Wenn nötig, biet Termin oder Rückruef aa und bestätig das klar.
+                            Wenn gwünscht, leit höflich a en Mitarbeitende wiiter.
+                            Reagiere sofort uf Unterbrächige.
+                            Beänd jedes Gespräch professionell und fründlich.""",
+            
+            
+            # """Du bist ein hilfreicher KI-Sprachassistent. Der Benutzer spricht mit dir per Sprache.
+            # # Antworte immer auf Deutsch, egal in welcher Sprache der Benutzer spricht.
+            # # Deine Antworten sind kurz, präzise und ohne komplexe Formatierungen oder Sonderzeichen.
+            # # Du bist freundlich, neugierig und hast einen guten Sinn für Humor.
+            # # Sprich natürlich und fließend wie ein echter deutschsprachiger Assistent.""",
             # Agent pe bhi set karo — working agent ka pattern
             min_endpointing_delay=MIN_ENDPOINTING_DELAY,
             max_endpointing_delay=MAX_ENDPOINTING_DELAY,
@@ -96,7 +108,7 @@ async def my_agent(ctx: JobContext):
         tts_plugin = groq.TTS(model="aura-2-zeus-en")
 
     session = AgentSession(
-        stt=groq.STT(model="whisper-large-v3-turbo", language="de"),
+        stt=groq.STT(model="whisper-large-v3-turbo"),  # no language = auto-detect (English + Swiss German)
         llm=groq.LLM(model="llama-3.1-8b-instant"),
         tts=tts_plugin,
         vad=vad,
